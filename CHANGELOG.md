@@ -1,4 +1,4 @@
-## 0.4.2 (Unreleased)
+## 0.4.2 (October 8, 2026)
 
 MathGaps's first release: upstream
 [0.4.1](https://github.com/AhmedOsman00/terraform-provider-apple/releases/tag/v0.4.1),
