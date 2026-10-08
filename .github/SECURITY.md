@@ -5,12 +5,14 @@
 **Do not open a public issue for a security problem.**
 
 Use GitHub's private vulnerability reporting: go to the
-[Security tab](https://github.com/AhmedOsman00/terraform-provider-apple/security/advisories/new)
+[Security tab](https://github.com/MathGaps/terraform-provider-apple/security/advisories/new)
 and choose **Report a vulnerability**. That opens a private thread only the
 maintainer can see, and it becomes a published advisory once a fix ships.
 
-If that form is unavailable to you, email <eng.ahmedosman00@gmail.com> with
-`[SECURITY]` in the subject.
+This is MathGaps's fork (FORK.md). A problem in the provider's own code is
+upstream's too: report it
+[there](https://github.com/AhmedOsman00/terraform-provider-apple/security/advisories/new)
+as well.
 
 Please include the provider version, the Terraform version, the configuration
 that triggers the problem with any credentials redacted, and what an attacker

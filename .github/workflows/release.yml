@@ -16,6 +16,10 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    # MathGaps's fork (FORK.md): the signing key is this environment's secret,
+    # and the environment admits only `v*` tags, so a workflow pushed on a
+    # branch cannot read it.
+    environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

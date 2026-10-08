@@ -1,3 +1,14 @@
+## 0.4.2 (Unreleased)
+
+MathGaps's first release: upstream
+[0.4.1](https://github.com/AhmedOsman00/terraform-provider-apple/releases/tag/v0.4.1),
+unchanged, published to the OpenTofu Registry as `mathgaps/apple` (FORK.md).
+
+NOTES:
+
+* The source address is `mathgaps/apple`.
+* The releases are signed with MathGaps's key, not upstream's.
+
 ## 0.4.1 (September 23, 2026)
 
 BUG FIXES:

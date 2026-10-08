@@ -1,5 +1,11 @@
 # Terraform Provider for Apple
 
+> **This is MathGaps's fork** of [AhmedOsman00/terraform-provider-apple](https://github.com/AhmedOsman00/terraform-provider-apple),
+> released to the OpenTofu Registry as `mathgaps/apple` because upstream is on
+> the Terraform Registry only. The provider is upstream's work; [FORK.md](FORK.md)
+> lists the little that differs. Feature requests and bugs in the provider
+> itself belong [upstream](https://github.com/AhmedOsman00/terraform-provider-apple/issues).
+
 A Terraform provider for the [Apple App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi),
 built on the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework).
 
