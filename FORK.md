@@ -15,6 +15,7 @@ Registry as `mathgaps/apple`.
 |---|---|
 | The registry address a configuration names: `mathgaps/apple` | everything `scripts/mathgaps-registry.sh` rewrites: `main.go`, `examples/`, `templates/`, `docs/`, `scripts/validate-examples.sh`, `README.md` |
 | The release job runs in the `release` environment, which holds the signing key and admits only `v*` tags | `.github/workflows/release.yml` |
+| GoReleaser makes the release a draft and the workflow publishes it once every asset is attached, so the OpenTofu registry never scans half a release | `.goreleaser.yml`, `.github/workflows/release.yml` |
 | Code owner, security contact, this file, the note at the top of `README.md` | `.github/CODEOWNERS`, `.github/SECURITY.md` |
 
 Nothing else. A fix or a feature that is not about this fork's packaging goes
