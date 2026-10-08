@@ -20,5 +20,8 @@ project {
 
     # GoReleaser tooling configuration
     ".goreleaser.yml",
+
+    # MathGaps's fork (FORK.md): not AO Studio's file
+    "scripts/mathgaps-registry.sh",
   ]
 }
