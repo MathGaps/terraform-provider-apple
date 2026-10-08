@@ -16,7 +16,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROVIDER_ADDR="registry.terraform.io/ahmedosman00/apple"
+PROVIDER_ADDR="registry.terraform.io/mathgaps/apple"
 # Must satisfy the version constraint the examples pin.
 PROVIDER_VERSION="0.1.0"
 
@@ -33,10 +33,10 @@ cat > "$WORK/terraformrc" <<EOF
 provider_installation {
   filesystem_mirror {
     path    = "$WORK/mirror"
-    include = ["registry.terraform.io/ahmedosman00/*"]
+    include = ["registry.terraform.io/mathgaps/*"]
   }
   direct {
-    exclude = ["registry.terraform.io/ahmedosman00/*"]
+    exclude = ["registry.terraform.io/mathgaps/*"]
   }
 }
 EOF

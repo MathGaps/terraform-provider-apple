@@ -16,7 +16,7 @@ Use this data source to retrieve information about Apple App Store Connect devic
 terraform {
   required_providers {
     apple = {
-      source  = "ahmedosman00/apple"
+      source  = "mathgaps/apple"
       version = "~> 0.1"
     }
   }

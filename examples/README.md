@@ -62,7 +62,7 @@ source address:
 terraform {
   required_providers {
     apple = {
-      source  = "ahmedosman00/apple"
+      source  = "mathgaps/apple"
       version = "~> 0.1"
     }
   }

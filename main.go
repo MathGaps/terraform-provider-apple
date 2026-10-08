@@ -49,10 +49,10 @@ func main() {
 	}()
 
 	opts := providerserver.ServeOpts{
-		// The Terraform Registry address this provider is published under.
+		// The OpenTofu Registry address MathGaps's fork is published under.
 		// Terraform normalizes source addresses to lower case, so the registry
-		// namespace "AhmedOsman00" is written here as "ahmedosman00".
-		Address: "registry.terraform.io/ahmedosman00/apple",
+		// namespace "MathGaps" is written here as "mathgaps".
+		Address: "registry.opentofu.org/mathgaps/apple",
 		Debug:   debug,
 	}
 

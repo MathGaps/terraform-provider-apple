@@ -33,7 +33,7 @@ These can be provided via provider configuration or environment variables.
 terraform {
   required_providers {
     apple = {
-      source  = "ahmedosman00/apple"
+      source  = "mathgaps/apple"
       version = "~> 0.1"
     }
   }

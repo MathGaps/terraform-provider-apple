@@ -30,15 +30,15 @@ signing key, and nothing Terraform stores is secret.
 
 ## Installation
 
-The provider is published on the Terraform Registry as
-[`ahmedosman00/apple`](https://registry.terraform.io/providers/ahmedosman00/apple/latest),
+The provider is published on the OpenTofu Registry as
+[`mathgaps/apple`](https://search.opentofu.org/provider/mathgaps/apple/latest),
 so declaring it is enough — `terraform init` downloads it:
 
 ```terraform
 terraform {
   required_providers {
     apple = {
-      source  = "ahmedosman00/apple"
+      source  = "mathgaps/apple"
       version = "~> 0.1"
     }
   }
@@ -80,7 +80,7 @@ secret store, not in version control.
 terraform {
   required_providers {
     apple = {
-      source  = "ahmedosman00/apple"
+      source  = "mathgaps/apple"
       version = "~> 0.1"
     }
   }

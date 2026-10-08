@@ -79,15 +79,15 @@ is easy to commit by accident.
 
 ## Installing the provider
 
-The provider is published on the Terraform Registry as
-[`ahmedosman00/apple`](https://registry.terraform.io/providers/ahmedosman00/apple/latest).
+The provider is published on the OpenTofu Registry as
+[`mathgaps/apple`](https://search.opentofu.org/provider/mathgaps/apple/latest).
 Declare it and `terraform init` downloads it — there is nothing to build:
 
 ```terraform
 terraform {
   required_providers {
     apple = {
-      source  = "ahmedosman00/apple"
+      source  = "mathgaps/apple"
       version = "~> 0.1"
     }
   }
@@ -109,7 +109,7 @@ to be. It is the option to choose for anything beyond a scratch experiment,
 because `terraform init` behaves normally and module installation works.
 
 ```bash
-MIRROR=~/.terraform-mirror/registry.terraform.io/ahmedosman00/apple/0.1.0/$(go env GOOS)_$(go env GOARCH)
+MIRROR=~/.terraform-mirror/registry.terraform.io/mathgaps/apple/0.1.0/$(go env GOOS)_$(go env GOARCH)
 mkdir -p "$MIRROR"
 go build -o "$MIRROR/terraform-provider-apple_v0.1.0" .
 ```
@@ -120,10 +120,10 @@ Then in `~/.terraformrc`:
 provider_installation {
   filesystem_mirror {
     path    = "/Users/you/.terraform-mirror"
-    include = ["registry.terraform.io/ahmedosman00/*"]
+    include = ["registry.terraform.io/mathgaps/*"]
   }
   direct {
-    exclude = ["registry.terraform.io/ahmedosman00/*"]
+    exclude = ["registry.terraform.io/mathgaps/*"]
   }
 }
 ```
@@ -140,7 +140,7 @@ throwaway mirror, if you want a worked example.
 ```hcl
 provider_installation {
   dev_overrides {
-    "ahmedosman00/apple" = "/Users/you/go/bin"
+    "mathgaps/apple" = "/Users/you/go/bin"
   }
   direct {}
 }
@@ -158,7 +158,7 @@ modules and no backend, and painful for anything else.
 terraform {
   required_providers {
     apple = {
-      source  = "ahmedosman00/apple"
+      source  = "mathgaps/apple"
       version = "~> 0.1"
     }
   }

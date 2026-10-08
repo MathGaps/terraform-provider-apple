@@ -19,7 +19,7 @@ This data source allows you to query and filter Provisioning Profiles based on v
 terraform {
   required_providers {
     apple = {
-      source  = "ahmedosman00/apple"
+      source  = "mathgaps/apple"
       version = "~> 0.1"
     }
   }
