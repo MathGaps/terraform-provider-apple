@@ -1,3 +1,15 @@
+## Unreleased
+
+BUG FIXES:
+
+* **Renaming an `apple_beta_group` no longer replaces it.** `is_internal_group` and
+  `has_access_to_all_builds` ran `RequiresReplace` before `UseStateForUnknown`. When a configuration
+  leaves them out and anything else about the group changes, the framework plans them unknown, and
+  `RequiresReplace` saw unknown differ from state. The same order on `apple_subscription_price` and
+  `apple_user_invitation` was harmless only because every other attribute of those already replaces
+  them; it is corrected there too, and a test now plans every resource's optional computed
+  attributes this way.
+
 ## 0.4.2 (October 8, 2026)
 
 MathGaps's first release: upstream
