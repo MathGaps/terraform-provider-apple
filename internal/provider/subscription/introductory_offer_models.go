@@ -68,14 +68,9 @@ type subscriptionIntroductoryOffersDataSourceModel struct {
 	TotalCount types.Int64 `tfsdk:"total_count"`
 }
 
-// Introductory offer validators.
+// Introductory offer validators. OfferModeValidator and OfferDurationValidator
+// are shared with the other offer kinds (promotional_offer_models.go).
 var (
-	// OfferModeValidator validates an introductory offer mode.
-	OfferModeValidator = stringvalidator.OneOf(models.ValidSubscriptionOfferModes...)
-
-	// OfferDurationValidator validates an introductory offer duration.
-	OfferDurationValidator = stringvalidator.OneOf(models.ValidSubscriptionOfferDurations...)
-
 	// OfferDateValidator validates the plain dates an offer starts and ends
 	// on. Like a price's start date, Apple takes a date, never a timestamp.
 	OfferDateValidator = stringvalidator.RegexMatches(

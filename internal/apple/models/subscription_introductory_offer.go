@@ -3,63 +3,6 @@
 
 package models
 
-// --- Shared subscription offer enumerations ---
-//
-// SubscriptionOfferMode and SubscriptionOfferDuration are shared by every
-// subscription offer kind. The promotional offer branch defines the same types,
-// names and values in subscription_promotional_offer.go; whichever lands second
-// deletes this block, from here to the introductory offer section below.
-
-// Subscription offer mode enumeration.
-//
-// FREE_TRIAL gives the subscription away for the offer's duration and carries
-// no price. PAY_AS_YOU_GO charges a discounted price every period for
-// numberOfPeriods periods; PAY_UP_FRONT charges one discounted price for the
-// whole duration. The two paid modes are what a subscriptionPricePoint is for.
-type SubscriptionOfferMode string
-
-const (
-	SubscriptionOfferModePayAsYouGo SubscriptionOfferMode = "PAY_AS_YOU_GO"
-	SubscriptionOfferModePayUpFront SubscriptionOfferMode = "PAY_UP_FRONT"
-	SubscriptionOfferModeFreeTrial  SubscriptionOfferMode = "FREE_TRIAL"
-)
-
-// ValidSubscriptionOfferModes lists the accepted offer modes.
-var ValidSubscriptionOfferModes = []string{
-	string(SubscriptionOfferModePayAsYouGo),
-	string(SubscriptionOfferModePayUpFront),
-	string(SubscriptionOfferModeFreeTrial),
-}
-
-// Subscription offer duration enumeration.
-//
-// A wider set than SubscriptionPeriod: an offer can last three days or two
-// weeks, which no subscription period can.
-type SubscriptionOfferDuration string
-
-const (
-	SubscriptionOfferDurationThreeDays   SubscriptionOfferDuration = "THREE_DAYS"
-	SubscriptionOfferDurationOneWeek     SubscriptionOfferDuration = "ONE_WEEK"
-	SubscriptionOfferDurationTwoWeeks    SubscriptionOfferDuration = "TWO_WEEKS"
-	SubscriptionOfferDurationOneMonth    SubscriptionOfferDuration = "ONE_MONTH"
-	SubscriptionOfferDurationTwoMonths   SubscriptionOfferDuration = "TWO_MONTHS"
-	SubscriptionOfferDurationThreeMonths SubscriptionOfferDuration = "THREE_MONTHS"
-	SubscriptionOfferDurationSixMonths   SubscriptionOfferDuration = "SIX_MONTHS"
-	SubscriptionOfferDurationOneYear     SubscriptionOfferDuration = "ONE_YEAR"
-)
-
-// ValidSubscriptionOfferDurations lists the accepted offer durations.
-var ValidSubscriptionOfferDurations = []string{
-	string(SubscriptionOfferDurationThreeDays),
-	string(SubscriptionOfferDurationOneWeek),
-	string(SubscriptionOfferDurationTwoWeeks),
-	string(SubscriptionOfferDurationOneMonth),
-	string(SubscriptionOfferDurationTwoMonths),
-	string(SubscriptionOfferDurationThreeMonths),
-	string(SubscriptionOfferDurationSixMonths),
-	string(SubscriptionOfferDurationOneYear),
-}
-
 // --- Subscription introductory offers ---
 
 // SubscriptionIntroductoryOffer is one introductory offer in one territory.
