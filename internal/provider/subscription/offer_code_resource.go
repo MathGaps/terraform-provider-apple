@@ -160,8 +160,10 @@ func (r *subscriptionOfferCodeResource) Schema(_ context.Context, _ resource.Sch
 				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(),
+					// UseStateForUnknown first: RequiresReplace compares the planned value
+					// with state, and an omitted computed value is unknown until this fills it.
 					boolplanmodifier.UseStateForUnknown(),
+					boolplanmodifier.RequiresReplace(),
 				},
 			},
 			"target_subscription_plan_type": schema.StringAttribute{
@@ -172,8 +174,10 @@ func (r *subscriptionOfferCodeResource) Schema(_ context.Context, _ resource.Sch
 				Computed:   true,
 				Validators: []validator.String{PlanTypeValidator},
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					// UseStateForUnknown first: RequiresReplace compares the planned value
+					// with state, and an omitted computed value is unknown until this fills it.
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"prices": schema.SetNestedAttribute{

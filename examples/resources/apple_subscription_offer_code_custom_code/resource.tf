@@ -10,13 +10,12 @@ resource "apple_subscription_offer_code" "schools" {
 }
 
 # One string many teachers type: letters and digits only, up to 64. Up to
-# 25,000 redemptions; an expiration date is optional and at most six months
-# away.
+# 25,000 redemptions. An expiration date is optional; when set it is at most six
+# months away, so it is left out here rather than written as a date that passes.
 resource "apple_subscription_offer_code_custom_code" "school2026" {
   offer_code_id   = apple_subscription_offer_code.schools.id
   custom_code     = "SCHOOL2026"
   number_of_codes = 5000
-  expiration_date = "2027-03-31"
 }
 
 # Ending it early: active = false stops redemptions in place, for good, and
