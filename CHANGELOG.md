@@ -1,5 +1,37 @@
 ## Unreleased
 
+FEATURES:
+
+* **`apple_subscription_promotional_offer` and
+  `apple_subscription_promotional_offers`.** Manages the discounts an app
+  presents to existing and lapsed subscribers — the offers it requests by
+  `offer_code` with a signature its server computes.
+
+  ```terraform
+  resource "apple_subscription_promotional_offer" "win_back" {
+    subscription_id   = apple_subscription.pro_monthly.id
+    name              = "Win back - half price"
+    offer_code        = "winback_half_3m"
+    duration          = "ONE_MONTH"
+    offer_mode        = "PAY_AS_YOU_GO"
+    number_of_periods = 3
+
+    prices = [
+      { territory_id = "USA", price_point_id = data.apple_subscription_price_points.half.price_points[0].id },
+    ]
+  }
+  ```
+
+  Apple's update request carries only the prices, so every other attribute
+  replaces the offer and the `prices` set changes in place. Prices are read
+  from the offer's own collection rather than an include Apple caps at 50, so
+  an offer priced in every storefront reads back whole. A `FREE_TRIAL` names
+  its territories and no price point. Apple does not document whether a
+  deleted offer's code is ever released, so treat a code as spent once used.
+  The data source lists a subscription's offers, including ones made in App
+  Store Connect, and import accepts `<subscription_id>/<offer_code>` as well
+  as the offer ID.
+
 BUG FIXES:
 
 * **Renaming an `apple_beta_group` no longer replaces it.** `is_internal_group` and
