@@ -121,7 +121,7 @@ func TestAccWinBackOfferResource_basic(t *testing.T) {
 // TestAccWinBackOfferResource_validation exercises the plan-time checks. It
 // creates nothing at Apple: every step fails at plan time.
 func TestAccWinBackOfferResource_validation(t *testing.T) {
-	config := func(paid, minimum, maximum, wait int, priority, end string) string {
+	config := func(paid, minimum, maximum, wait int, priority, start, end string) string {
 		return fmt.Sprintf(`
 resource "apple_subscription_win_back_offer" "test" {
   subscription_id = "12345"
@@ -131,7 +131,7 @@ resource "apple_subscription_win_back_offer" "test" {
   offer_mode      = "PAY_AS_YOU_GO"
   period_count    = 1
   priority        = %[5]q
-  start_date      = "2030-07-10"
+  start_date      = %[7]q
   end_date        = %[6]q
 
   customer_eligibility_paid_subscription_duration_in_months = %[1]d
@@ -139,21 +139,23 @@ resource "apple_subscription_win_back_offer" "test" {
   customer_eligibility_wait_between_offers_in_months        = %[4]d
 
   prices = [{ price_point_id = "abcdef" }]
-}`, paid, minimum, maximum, wait, priority, end)
+}`, paid, minimum, maximum, wait, priority, end, start)
 	}
+	start, end := testAccWinBackOfferDate(30), testAccWinBackOfferDate(60)
 
 	tests := []struct {
 		name        string
 		config      string
 		expectError *regexp.Regexp
 	}{
-		{"paid duration Apple does not offer", config(30, 2, 24, 2, "HIGH", "2030-08-10"), regexp.MustCompile(`Invalid Attribute Value`)},
-		{"lapsed window beyond 24 months", config(6, 2, 36, 2, "HIGH", "2030-08-10"), regexp.MustCompile(`Invalid Attribute Value`)},
-		{"lapsed window inverted", config(6, 12, 3, 2, "HIGH", "2030-08-10"), regexp.MustCompile(`(?s)minimum 12\s+above\s+maximum\s+3`)},
-		{"wait shorter than two months", config(6, 2, 24, 1, "HIGH", "2030-08-10"), regexp.MustCompile(`Invalid Attribute Value`)},
-		{"priority outside the enum", config(6, 2, 24, 2, "LOW", "2030-08-10"), regexp.MustCompile(`Invalid Attribute Value Match`)},
-		{"end before start", config(6, 2, 24, 2, "HIGH", "2030-07-01"), regexp.MustCompile(`(?s)is\s+not\s+after\s+start_date`)},
-		{"end as a timestamp", config(6, 2, 24, 2, "HIGH", "2030-08-10T00:00:00Z"), regexp.MustCompile(`Invalid Attribute Value Match`)},
+		{"paid duration Apple does not offer", config(30, 2, 24, 2, "HIGH", start, end), regexp.MustCompile(`Invalid Attribute Value`)},
+		{"lapsed window beyond 24 months", config(6, 2, 36, 2, "HIGH", start, end), regexp.MustCompile(`Invalid Attribute Value`)},
+		{"lapsed window inverted", config(6, 12, 3, 2, "HIGH", start, end), regexp.MustCompile(`(?s)minimum 12\s+above\s+maximum\s+3`)},
+		{"wait shorter than two months", config(6, 2, 24, 1, "HIGH", start, end), regexp.MustCompile(`Invalid Attribute Value`)},
+		{"priority outside the enum", config(6, 2, 24, 2, "LOW", start, end), regexp.MustCompile(`Invalid Attribute Value Match`)},
+		{"end before start", config(6, 2, 24, 2, "HIGH", start, testAccWinBackOfferDate(20)), regexp.MustCompile(`(?s)less\s+than\s+two\s+days\s+after\s+start_date`)},
+		{"end as a timestamp", config(6, 2, 24, 2, "HIGH", start, end+"T00:00:00Z"), regexp.MustCompile(`Invalid Attribute Value Match`)},
+		{"start in the past", config(6, 2, 24, 2, "HIGH", testAccWinBackOfferDate(-2), end), regexp.MustCompile(`(?s)is\s+not\s+after\s+today`)},
 	}
 
 	for _, tt := range tests {

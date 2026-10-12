@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/AhmedOsman00/terraform-provider-apple/internal/apple/models"
 
@@ -283,5 +284,29 @@ func TestTargetPlanTypeOmittedDoesNotReplace(t *testing.T) {
 	}
 	if !planned.PlanValue.IsNull() {
 		t.Errorf("planned value = %s, want the null held in state", planned.PlanValue)
+	}
+}
+
+func TestWinBackOfferStartTooSoon(t *testing.T) {
+	// 10:00 UTC on 1 July is still 30 June in UTC-12.
+	now := time.Date(2027, time.July, 1, 10, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		start   string
+		refused bool
+	}{
+		{"2027-06-29", true},
+		{"2027-06-30", true},  // today, where the calendar is furthest behind
+		{"2027-07-01", false}, // tomorrow there; Apple may still refuse it in its own zone
+		{"2027-08-01", false},
+		{"2027-13-01", false}, // not a date: ValidateConfig reports it
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.start, func(t *testing.T) {
+			if got := winBackOfferStartTooSoon(tt.start, now); (got != "") != tt.refused {
+				t.Errorf("winBackOfferStartTooSoon(%s) = %q, want refused %v", tt.start, got, tt.refused)
+			}
+		})
 	}
 }

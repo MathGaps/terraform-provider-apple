@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/AhmedOsman00/terraform-provider-apple/internal/apple"
 	"github.com/AhmedOsman00/terraform-provider-apple/internal/apple/models"
@@ -30,6 +31,7 @@ var (
 	_ resource.ResourceWithConfigure      = &winBackOfferResource{}
 	_ resource.ResourceWithImportState    = &winBackOfferResource{}
 	_ resource.ResourceWithValidateConfig = &winBackOfferResource{}
+	_ resource.ResourceWithModifyPlan     = &winBackOfferResource{}
 )
 
 func NewWinBackOfferResource() resource.Resource {
@@ -258,6 +260,34 @@ func (r *winBackOfferResource) ValidateConfig(ctx context.Context, req resource.
 
 	for _, problem := range validateWinBackOfferConfig(window, config.StartDate, config.EndDate) {
 		resp.Diagnostics.AddError("Invalid Win-Back Offer", problem)
+	}
+}
+
+// ModifyPlan refuses a start date Apple would refuse -- one earlier than
+// tomorrow -- when the plan sets it: on create, or when it changes. It is not
+// in ValidateConfig because it depends on today: an offer's start date passes,
+// and checking it on every plan would break every plan of a running offer.
+func (r *winBackOfferResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan winBackOfferModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() || plan.StartDate.IsNull() || plan.StartDate.IsUnknown() {
+		return
+	}
+
+	if !req.State.Raw.IsNull() {
+		var state winBackOfferModel
+		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+		if resp.Diagnostics.HasError() || plan.StartDate.Equal(state.StartDate) {
+			return
+		}
+	}
+
+	if problem := winBackOfferStartTooSoon(plan.StartDate.ValueString(), time.Now()); problem != "" {
+		resp.Diagnostics.AddAttributeError(path.Root("start_date"), "Invalid Win-Back Offer", problem)
 	}
 }
 

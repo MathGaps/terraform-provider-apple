@@ -397,3 +397,24 @@ func winBackOfferDate(attribute string, value types.String, problems *[]string) 
 
 	return date, true
 }
+
+// winBackOfferStartTooSoon reports a start date that is not after today, which
+// Apple refuses: a win-back offer starts tomorrow at the earliest. Apple does
+// not say in which time zone, so today is taken where the calendar is furthest
+// behind (UTC-12): a date that is not after today there is not after today
+// anywhere. A date that is not a calendar date is ValidateConfig's to report.
+func winBackOfferStartTooSoon(startDate string, now time.Time) string {
+	start, err := time.Parse(time.DateOnly, startDate)
+	if err != nil {
+		return ""
+	}
+
+	latest := now.In(time.FixedZone("UTC-12", -12*60*60))
+	today := time.Date(latest.Year(), latest.Month(), latest.Day(), 0, 0, 0, 0, time.UTC)
+	if start.After(today) {
+		return ""
+	}
+
+	return fmt.Sprintf("start_date %s is not after today (%s). Apple starts a win-back offer tomorrow at the "+
+		"earliest.", startDate, today.Format(time.DateOnly))
+}
