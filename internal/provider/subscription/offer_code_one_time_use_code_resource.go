@@ -215,10 +215,14 @@ func (r *subscriptionOfferCodeOneTimeUseCodeResource) Create(ctx context.Context
 	if _, err := r.client.SetSubscriptionOfferCodeOneTimeUseCodeActive(batch.ID, false, nil); err != nil {
 		// A warning, for the reason the offer code's Create gives: an error
 		// would taint this and create another that Apple can never delete.
+		// State keeps the planned value; the next refresh reads Apple's.
+		plan.Active = configuredActive
+		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 		resp.Diagnostics.AddWarning(
 			"One-Time-Use Codes Created Active",
 			fmt.Sprintf("Batch '%s' was created, but deactivating it as configured failed: %s\n\n"+
-				"It is in state as active; the next apply deactivates it.", batch.ID, err.Error()),
+				"It is still active at Apple. The next plan shows it, and the next apply deactivates it.",
+				batch.ID, err.Error()),
 		)
 		return
 	}
