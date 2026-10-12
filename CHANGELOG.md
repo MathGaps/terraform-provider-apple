@@ -1,4 +1,9 @@
-## Unreleased
+## 0.5.0 (October 12, 2026)
+
+MathGaps's first release with resources of its own: upstream
+[0.4.1](https://github.com/AhmedOsman00/terraform-provider-apple/releases/tag/v0.4.1)
+plus the subscription offers below, built here first and to be offered upstream
+(FORK.md).
 
 FEATURES:
 
@@ -102,6 +107,10 @@ FEATURES:
   codes, expiration at most six months away — are checked at plan time.
 
 BUG FIXES:
+
+* **Built with Go 1.26.9 and `golang.org/x/net` 0.60.0.** `govulncheck` reached nine published
+  vulnerabilities from the provider's own HTTP client and server on Go 1.25.14 (GO-2026-6603,
+  -6605, -6607, -6608, -6610, -6611, -6612, -6613, -6617).
 
 * **Renaming an `apple_beta_group` no longer replaces it.** `is_internal_group` and
   `has_access_to_all_builds` ran `RequiresReplace` before `UseStateForUnknown`. When a configuration
