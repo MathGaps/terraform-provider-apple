@@ -236,6 +236,9 @@ convention differs here.
 | `TestAccSubscriptionPromotionalOfferResource_basic` | Net zero | A group, a subscription, a USA+GBR availability, and a `PAY_AS_YOU_GO` promotional offer priced in USA plus the GBR point Apple equalizes from it. Drops GBR in place, lists the offer through `apple_subscription_promotional_offers`, then imports it by bare ID and as `<subscription>/<offer_code>`. The offer code is randomised. | A subscription with a promotional offer in two storefronts, then one. All of it is then deleted, the offer first. |
 | `TestAccSubscriptionPromotionalOfferResource_freeTrial` | Net zero | A group, a subscription, a USA availability, and a `FREE_TRIAL` promotional offer whose one price names the territory and no price point. Run this first: it is the one shape Apple's schema permits but the provider has not seen accepted. | A subscription with a one-month free promotional offer, then all of it deleted. |
 | `TestAccSubscriptionPromotionalOfferResource_validation` | Plan-only | Nothing. A paid offer without a price point, an unknown duration and an offer code with a slash are rejected before Apple is asked. | No change. |
+| `TestAccSubscriptionIntroductoryOfferResource_freeTrial` | Net zero | A group, a subscription, a USA+GBR+CAN availability and price schedule, and a one-week free trial in USA and GBR — two records in one `PATCH` — read back through `apple_subscription_introductory_offers`. Imports from the GBR record, then sets an end date and swaps GBR for CAN in place. | A subscription with an introductory offer in two storefronts, then an end date on it and a different second storefront. All of it is then deleted. |
+| `TestAccSubscriptionIntroductoryOfferResource_payAsYouGo` | Net zero | The same sellable subscription, plus three discounted months at the USA 0.99 point and its GBR equalization. Imports from the USA record. | A pay-as-you-go introductory offer in two storefronts. All of it is then deleted. |
+| `TestAccSubscriptionIntroductoryOfferResource_validation` | Plan-only | Nothing — runs without credentials. | No change. |
 | `TestAccSubscriptionResource_requiresReplace` | Net zero | A group plus a subscription, replaced by one with a different product ID. **Consumes two identifiers rather than one.** | One subscription appears, then is destroyed and replaced by another. |
 | `TestAccSubscriptionResource_validation` | Plan-only | Nothing. | No change. |
 | `TestAccAppsDataSource_basic` | Read-only | Nothing — apps cannot be created by the API. | No change. |
@@ -284,6 +287,16 @@ which is why the test is still net zero. The price is the other: once it is in
 effect Apple deletes only future price changes, so `terraform destroy` warns and
 drops it from state, and the subscription's own deletion is what actually
 removes it.
+
+The introductory offer tests check Apple rather than state the same way.
+`testAccCheckIntroductoryOfferCount` counts **every** introductory offer record
+on the subscription, not just the resource's: the bulk create repeats the
+subscription's existing offers in its `PATCH` so a replacing write keeps them,
+and a removed territory is a `DELETE`, so either going wrong shows up as a count
+that is off. Their import steps ignore `start_date` and
+`target_subscription_plan_type`, which import adopts from Apple and Read never
+refreshes. Destroying the offer deletes its records; destroying the subscription
+would take them along anyway.
 
 ## In-app purchases
 

@@ -32,6 +32,20 @@ FEATURES:
   Store Connect, and import accepts `<subscription_id>/<offer_code>` as well
   as the offer ID.
 
+* **New resource `apple_subscription_introductory_offer`** — a free trial or a
+  discounted first period on an auto-renewable subscription, described once
+  across a set of territories. Apple keeps one record per territory; the
+  resource owns one in each territory it names (`offer_ids`) and creates them
+  all in a single `PATCH /v1/subscriptions/{id}`, so a one-week trial
+  everywhere is one resource and one request rather than 175. A free trial
+  names `territory_ids`; a paid offer keys its price points by territory in
+  `price_point_ids`, the map `apple_subscription_price_point_equalizations`
+  produces. `end_date` and the territory set change in place; destroy deletes
+  every record. Import with `<subscription_id>/<offer_id>`.
+* **New data source `apple_subscription_introductory_offers`** — lists a
+  subscription's introductory offer records, one per territory, including
+  ones made in App Store Connect.
+
 BUG FIXES:
 
 * **Renaming an `apple_beta_group` no longer replaces it.** `is_internal_group` and
