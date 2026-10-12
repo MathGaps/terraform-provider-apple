@@ -207,19 +207,27 @@ func (r *subscriptionOfferCodeCustomCodeResource) Create(ctx context.Context, re
 	plan.ID = types.StringValue(code.ID)
 	plan.CreatedDate = stringOrNull(code.Attributes.CreatedDate)
 
-	// State first, for the reason the offer code's Create gives.
+	// State first, as Apple holds it -- active -- for the reason the offer
+	// code's Create gives.
+	configuredActive := plan.Active
+	plan.Active = types.BoolValue(true)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-	if resp.Diagnostics.HasError() || plan.Active.ValueBool() {
+	if resp.Diagnostics.HasError() || configuredActive.ValueBool() {
 		return
 	}
 
 	if _, err := r.client.SetSubscriptionOfferCodeCustomCodeActive(code.ID, false, nil); err != nil {
-		resp.Diagnostics.AddError(
-			"Error Deactivating Custom Code",
-			fmt.Sprintf("Custom code '%s' was created, but deactivating it as configured failed: %s",
-				code.ID, err.Error()),
+		// A warning, for the reason the offer code's Create gives: an error
+		// would taint this and create another that Apple can never delete.
+		resp.Diagnostics.AddWarning(
+			"Custom Code Created Active",
+			fmt.Sprintf("Custom code '%s' was created, but deactivating it as configured failed: %s\n\n"+
+				"It is in state as active; the next apply deactivates it.", code.ID, err.Error()),
 		)
+		return
 	}
+	plan.Active = configuredActive
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 // Read refreshes the custom code from Apple.

@@ -339,23 +339,31 @@ func (r *subscriptionOfferCodeResource) Create(ctx context.Context, req resource
 	plan.ID = types.StringValue(offer.ID)
 	applyOfferCodeComputed(&plan, offer)
 
-	// State is written before deactivating: an offer left out of state is one
-	// Terraform can never see again, and Apple will not delete it.
+	// State is written before deactivating, as Apple holds it: active. An offer
+	// left out of state is one Terraform can never see again, and Apple will not
+	// delete it.
+	configuredActive := plan.Active
+	plan.Active = types.BoolValue(true)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if !plan.Active.ValueBool() {
+	if !configuredActive.ValueBool() {
 		updated, err := r.client.SetSubscriptionOfferCodeActive(offer.ID, false, nil)
 		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error Deactivating Subscription Offer Code",
-				fmt.Sprintf("Offer code '%s' was created, but deactivating it as configured failed: %s",
-					offer.ID, err.Error()),
+			// A warning, not an error: Terraform taints an object whose create
+			// errs and plans its replacement, which here would create a second
+			// offer Apple can never delete. State says active, so the next plan
+			// deactivates this one in place.
+			resp.Diagnostics.AddWarning(
+				"Subscription Offer Code Created Active",
+				fmt.Sprintf("Offer code '%s' was created, but deactivating it as configured failed: %s\n\n"+
+					"It is in state as active; the next apply deactivates it.", offer.ID, err.Error()),
 			)
 			return
 		}
+		plan.Active = configuredActive
 		applyOfferCodeComputed(&plan, updated)
 		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	}
