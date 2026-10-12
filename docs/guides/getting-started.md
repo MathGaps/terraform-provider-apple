@@ -319,6 +319,9 @@ them. Anything whose parent cannot be read back takes a composite ID:
 | `apple_subscription_price` | `<subscription_id>/<price_id>` |
 | `apple_subscription_price_schedule` | `<subscription_id>` |
 | `apple_subscription_availability` | `<subscription_id>` |
+| `apple_subscription_offer_code` | Apple ID |
+| `apple_subscription_offer_code_custom_code` | Apple ID |
+| `apple_subscription_offer_code_one_time_use_code` | Apple ID |
 | `apple_in_app_purchase` | `<app_id>/<in_app_purchase_id>` |
 | `apple_in_app_purchase_localization` | Apple ID, or `<in_app_purchase_id>/<localization_id>` |
 | `apple_in_app_purchase_price_schedule` | `<in_app_purchase_id>` |
@@ -424,7 +427,7 @@ Every resource has a matching plural data source (`apple_bundle_ids`,
 `apple_certificates`, `apple_devices`, `apple_merchant_ids`,
 `apple_pass_type_ids`, `apple_profiles`, `apple_bundle_id_capabilities`,
 `apple_apps`, `apple_subscription_groups`, `apple_subscriptions`,
-`apple_in_app_purchases`, `apple_users`) for referring to things another state
+`apple_subscription_offer_codes`, `apple_in_app_purchases`, `apple_users`) for referring to things another state
 owns.
 Two data sources have no resource behind them at all: `apple_apps`, because
 Apple's API cannot create an app record, and `apple_territories`, because

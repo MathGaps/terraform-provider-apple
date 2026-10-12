@@ -102,6 +102,15 @@ func createToken(keyID, issuerID, privateKeyPEM string, scope []string) (string,
 }
 
 func (c *Client) doRequest(req *http.Request, authToken *string) ([]byte, error) {
+	return c.doRequestAccepting(req, authToken, "application/json")
+}
+
+// doRequestAccepting is doRequest for the few endpoints whose success body is
+// not JSON. GET /v1/subscriptionOfferCodeOneTimeUseCodes/{id}/values answers
+// text/csv -- the generated codes as a file -- so asking it for JSON alone
+// would be asking for a representation it does not have. Errors are JSON
+// either way, which is why the error handling below is shared.
+func (c *Client) doRequestAccepting(req *http.Request, authToken *string, accept string) ([]byte, error) {
 	token := c.Token
 
 	if authToken != nil {
@@ -110,7 +119,7 @@ func (c *Client) doRequest(req *http.Request, authToken *string) ([]byte, error)
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", accept)
 
 	res, err := c.HTTPClient.Do(req)
 	if err != nil {

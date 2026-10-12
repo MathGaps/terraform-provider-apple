@@ -59,6 +59,48 @@ FEATURES:
   approved. The data source lists a subscription's offers, including ones made
   in App Store Connect, and imports take `<subscription_id>/<offer_id>`.
 
+* **`apple_subscription_offer_code`, `apple_subscription_offer_code_custom_code`,
+  `apple_subscription_offer_code_one_time_use_code`, and the data sources
+  `apple_subscription_offer_codes` and
+  `apple_subscription_offer_code_one_time_use_code_values`.** Subscription offer
+  codes — the App Store's nearest thing to a coupon: a discount or free period
+  on one subscription, redeemed with a shared custom code (`SCHOOL2026`) or a
+  batch of one-time-use codes Apple generates.
+
+  ```terraform
+  resource "apple_subscription_offer_code" "schools" {
+    subscription_id        = apple_subscription.pro_annual.id
+    name                   = "Schools 2026"
+    customer_eligibilities = ["NEW"]
+    offer_eligibility      = "STACK_WITH_INTRO_OFFERS"
+    duration               = "ONE_MONTH"
+    offer_mode             = "FREE_TRIAL"
+    number_of_periods      = 1
+    prices                 = [{ territory_id = "AUS" }]
+  }
+
+  resource "apple_subscription_offer_code_custom_code" "school2026" {
+    offer_code_id   = apple_subscription_offer_code.schools.id
+    custom_code     = "SCHOOL2026"
+    number_of_codes = 5000
+  }
+  ```
+
+  !> **Nothing here can be deleted.** Apple publishes no `DELETE` for any of the
+  three records, so `terraform destroy` **deactivates** them, warns and drops
+  them from state; they stay in App Store Connect for good, and a deactivated
+  offer or code can never be reactivated. Every attribute but `active` is fixed
+  at creation, so changing one replaces the record — and the old one's codes stop
+  working. `active = false` ends a campaign in place; setting it back to `true`
+  plans a new record.
+
+  The generated one-time-use codes are not an attribute of the batch: they are
+  secrets, up to 25,000 a batch, and are read only through the opt-in values
+  data source, whose `csv` is sensitive in plans but stored in state in plain
+  text. Apple's documented limits — custom codes of up to 64 letters and digits
+  and 25,000 redemptions, batches of 500–25,000 production or 10–10,000 sandbox
+  codes, expiration at most six months away — are checked at plan time.
+
 BUG FIXES:
 
 * **Renaming an `apple_beta_group` no longer replaces it.** `is_internal_group` and

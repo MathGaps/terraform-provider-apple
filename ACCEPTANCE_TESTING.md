@@ -42,6 +42,7 @@ Assuming every test passes and every destroy completes:
 | **Transient peak** | 2 | Certificates alive at once, at most. Tests run sequentially and each revokes what it issued. |
 | **Net zero** | 17 | Resource kinds fully cleaned up: Bundle IDs, capabilities, Merchant IDs, Pass Type IDs, profiles, subscription groups, subscriptions, localizations, prices, promotional offers, in-app purchases, their localizations, price schedules and availability, beta groups, both TestFlight localizations, and win-back offers if `APPLE_TEST_APPROVED_SUBSCRIPTION_ID` is set. |
 | **Opt-in residue** | 1 | A beta tester record in the account, if `APPLE_TEST_BETA_TESTER_EMAIL` is set. The membership is removed; the record is not — see [TestFlight](#testflight). |
+| **Opt-in residue** | 3 | Per run, a deactivated offer code, custom code and batch of 10 sandbox codes on the subscription `APPLE_TEST_OFFER_SUBSCRIPTION_ID` names, if it is set. Apple cannot delete any of them — see [Subscription offer codes](#subscription-offer-codes). |
 | **Opt-in removal** | 1 | A team member removed from Users and Access, if `APPLE_TEST_USER_EMAIL` and `APPLE_TEST_ALLOW_USER_REMOVAL` are both set. They have to be invited again — see [Team members](#team-members-users-and-access). |
 | **Reserved forever** | ~16 | Subscription and in-app purchase product identifiers, randomised per run, plus one win-back `offer_id` when that test is opted into, and possibly promotional offer codes, whose release Apple does not document. Invisible once deleted, drawn from an unlimited namespace — see [Subscriptions](#subscriptions), [Win-back offers](#win-back-offers) and [In-app purchases](#in-app-purchases). |
 | **Touch nothing** | 30 | Tests rejected at plan time or read-only. |
@@ -363,6 +364,53 @@ points are meaningless here — which is why
 `TestAccInAppPurchaseResource_completesMetadata` reads the catalogue through a
 data source in the same configuration rather than hardcoding an ID.
 
+## Subscription offer codes
+
+**These are the only App Store Connect tests whose residue is permanent.**
+App Store Connect API 4.5.1 publishes no `DELETE` for an offer code, a custom
+code or a batch of one-time-use codes, so `terraform destroy` deactivates each
+one and drops it from state. They stay listed under the subscription —
+deactivated, unredeemable, and impossible to reactivate — for good. An offer
+attached to a subscription may also stop that subscription being deleted.
+
+So the test creates no subscription. It skips unless
+`APPLE_TEST_OFFER_SUBSCRIPTION_ID` names an existing subscription that is
+available in the USA — credentials and `APPLE_TEST_APP_ID` are deliberately not
+enough. Use a scratch subscription that will never be sold:
+
+```sh
+export APPLE_TEST_OFFER_SUBSCRIPTION_ID=6740021496
+```
+
+Each run also draws on the app's quarterly offer code quota (App Store Connect
+Help: a million codes per app per quarter, shared across subscriptions). The
+test keeps that to the minimum — one custom code capped at a single
+redemption and a `SANDBOX` batch of 10 — and offers a `FREE_TRIAL`, so it needs
+no price point.
+
+| Test | Residue | Creates at Apple | What you see in the portal |
+|---|---|---|---|
+| `TestAccSubscriptionOfferCodeResource_basic` | **Permanent** (3 deactivated records) | A `FREE_TRIAL` offer code in the USA; a randomised custom code (`TF` + 10 characters, one redemption, expiring in a month); a batch of 10 `SANDBOX` one-time-use codes. Reads the generated codes, deactivates the custom code in place, then imports all three by bare ID. | Under the subscription's *Offer Codes*, a new offer with one custom code and one sandbox batch. The custom code turns inactive mid-test; after destroy the offer and the batch are inactive too, and all three stay listed. |
+| `TestAccSubscriptionOfferCodeResource_validation` | Plan-only | Nothing. | No change. |
+
+`testAccCheckOfferCodesDeactivated` is the destroy check, and it asks Apple
+rather than state: each record must still exist **and** report `active: false`.
+
+**What a first run should confirm**, because the spec and the help leave it
+open: that a `FREE_TRIAL` is accepted with territories and no price points;
+that `GET …/values` returns the codes straight after the batch is created
+rather than some time later (the help says redemption can take up to an hour);
+the CSV's layout; whether Apple reports `autoRenewEnabled` and
+`targetSubscriptionPlanType` when they were not sent (the import step's
+`ImportStateVerify` covers that); and whether Apple changes the case of a
+custom code.
+
+Custom code strings are randomised because Apple refuses one that another
+*active* offer of the app already uses: an interrupted run leaves its code
+active, and a fixed string would fail every run after it until somebody
+deactivated it by hand. Unlike a product identifier, the string is released
+once its record is deactivated.
+
 ## App listing metadata
 
 **These tests need the same app the subscription tests do**, and skip without
@@ -621,6 +669,12 @@ App Store Connect → the APPLE_TEST_APP_ID app → Monetization → Subscriptio
   Any group named "Terraform Test / Renamed / Import / Sub / Full /
   Replace / DS / SubDS / PP <random>"     → delete it, and the
                                              subscriptions inside it first
+
+App Store Connect → the APPLE_TEST_OFFER_SUBSCRIPTION_ID subscription → Offer Codes
+  Any offer named "Terraform Offer         → deactivate it. It cannot be
+  <random>" still shown as active             deleted; deactivating it also
+                                             ends its "TF…" custom code and
+                                             its sandbox batch.
 
 App Store Connect → APPLE_TEST_APPROVED_SUBSCRIPTION_ID → Win-Back Offers
   Any offer whose offer ID starts with
