@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"time"
 
 	"github.com/AhmedOsman00/terraform-provider-apple/internal/apple"
 	"github.com/AhmedOsman00/terraform-provider-apple/internal/apple/models"
@@ -363,13 +364,36 @@ func validateWinBackOfferConfig(window *monthRangeModel, startDate, endDate type
 			window.Minimum.ValueInt64(), window.Maximum.ValueInt64()))
 	}
 
-	// Both are plain YYYY-MM-DD dates, so a string comparison orders them.
-	if !startDate.IsNull() && !startDate.IsUnknown() && !endDate.IsNull() && !endDate.IsUnknown() &&
-		endDate.ValueString() <= startDate.ValueString() {
+	// The validator holds both to the YYYY-MM-DD form; only parsing says whether
+	// the form names a day that exists.
+	start, startOK := winBackOfferDate("start_date", startDate, &problems)
+	end, endOK := winBackOfferDate("end_date", endDate, &problems)
+
+	// Apple requires a win-back offer to run for at least three days and does
+	// not say whether it counts both ends. An end two days after the start is
+	// three days counted inclusively, so anything shorter fails under either
+	// reading; that is all this refuses, and Apple decides the rest.
+	if startOK && endOK && end.Before(start.AddDate(0, 0, 2)) {
 		problems = append(problems, fmt.Sprintf(
-			"end_date %s is not after start_date %s. Apple requires a win-back offer to run for at least "+
-				"three days.", endDate.ValueString(), startDate.ValueString()))
+			"end_date %s is less than two days after start_date %s. Apple requires a win-back offer to run "+
+				"for at least three days.", endDate.ValueString(), startDate.ValueString()))
 	}
 
 	return problems
+}
+
+// winBackOfferDate parses a known plain date, adding a problem when it names no
+// real day (2027-02-30, 2027-13-01). A null or unknown value is not checked.
+func winBackOfferDate(attribute string, value types.String, problems *[]string) (time.Time, bool) {
+	if value.IsNull() || value.IsUnknown() {
+		return time.Time{}, false
+	}
+
+	date, err := time.Parse(time.DateOnly, value.ValueString())
+	if err != nil {
+		*problems = append(*problems, fmt.Sprintf("%s %s is not a calendar date.", attribute, value.ValueString()))
+		return time.Time{}, false
+	}
+
+	return date, true
 }

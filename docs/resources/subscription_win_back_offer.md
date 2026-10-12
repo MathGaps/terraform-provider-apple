@@ -54,6 +54,18 @@ data "apple_subscription_price_point_equalizations" "offer" {
   price_point_id = data.apple_subscription_price_points.offer_base.price_points[0].id
 }
 
+# Apple refuses a start date earlier than tomorrow and an offer that runs for
+# less than three days, so the dates are the caller's to supply.
+variable "win_back_starts_on" {
+  type        = string
+  description = "The first day the offer is shown, YYYY-MM-DD, no earlier than tomorrow."
+}
+
+variable "win_back_ends_on" {
+  type        = string
+  description = "The last day the offer is shown, YYYY-MM-DD, at least two days after it starts."
+}
+
 # Half price for three months, for customers who paid for at least six months
 # and lapsed between two months and a year ago.
 resource "apple_subscription_win_back_offer" "half_price" {
@@ -69,8 +81,8 @@ resource "apple_subscription_win_back_offer" "half_price" {
   customer_eligibility_time_since_last_subscribed_in_months = { minimum = 2, maximum = 12 }
   customer_eligibility_wait_between_offers_in_months        = 6
 
-  start_date       = "2027-01-15"
-  end_date         = "2027-03-31"
+  start_date       = var.win_back_starts_on
+  end_date         = var.win_back_ends_on
   priority         = "HIGH"
   promotion_intent = "NOT_PROMOTED"
 
