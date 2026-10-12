@@ -96,8 +96,8 @@ func (r *subscriptionPriceResource) Schema(_ context.Context, _ resource.SchemaR
 				Computed:   true,
 				Validators: []validator.String{TerritoryValidator},
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"start_date": schema.StringAttribute{
@@ -124,8 +124,8 @@ func (r *subscriptionPriceResource) Schema(_ context.Context, _ resource.SchemaR
 				Computed:   true,
 				Validators: []validator.String{PlanTypeValidator},
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"preserved": schema.BoolAttribute{

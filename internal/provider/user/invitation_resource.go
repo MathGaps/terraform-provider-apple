@@ -123,8 +123,8 @@ func (r *userInvitationResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(),
 					boolplanmodifier.UseStateForUnknown(),
+					boolplanmodifier.RequiresReplace(),
 				},
 			},
 			"visible_apps": schema.SetAttribute{
