@@ -418,3 +418,22 @@ func winBackOfferStartTooSoon(startDate string, now time.Time) string {
 	return fmt.Sprintf("start_date %s is not after today (%s). Apple starts a win-back offer tomorrow at the "+
 		"earliest.", startDate, today.Format(time.DateOnly))
 }
+
+// winBackOfferReplaced reports whether the plan replaces the offer: whether an
+// attribute Apple's update request cannot carry -- everything but the
+// eligibility, the dates, priority and promotion_intent -- changes to a known
+// value.
+func winBackOfferReplaced(plan, state winBackOfferModel) bool {
+	changed := func(planned, prior attr.Value) bool {
+		return !planned.IsUnknown() && !planned.Equal(prior)
+	}
+
+	return changed(plan.SubscriptionID, state.SubscriptionID) ||
+		changed(plan.ReferenceName, state.ReferenceName) ||
+		changed(plan.OfferID, state.OfferID) ||
+		changed(plan.Duration, state.Duration) ||
+		changed(plan.OfferMode, state.OfferMode) ||
+		changed(plan.PeriodCount, state.PeriodCount) ||
+		changed(plan.TargetSubscriptionPlanType, state.TargetSubscriptionPlanType) ||
+		changed(plan.Prices, state.Prices)
+}

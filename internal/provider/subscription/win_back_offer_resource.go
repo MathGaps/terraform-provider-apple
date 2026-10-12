@@ -281,7 +281,13 @@ func (r *winBackOfferResource) ModifyPlan(ctx context.Context, req resource.Modi
 	if !req.State.Raw.IsNull() {
 		var state winBackOfferModel
 		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-		if resp.Diagnostics.HasError() || plan.StartDate.Equal(state.StartDate) {
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		// An unchanged start date is sent again only when the offer is
+		// replaced. The framework hands ModifyPlan no RequiresReplace from the
+		// attributes, so the replacement is read from the plan here.
+		if plan.StartDate.Equal(state.StartDate) && !winBackOfferReplaced(plan, state) {
 			return
 		}
 	}

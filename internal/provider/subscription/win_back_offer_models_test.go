@@ -6,6 +6,7 @@ package subscription
 import (
 	"context"
 	"encoding/json"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"testing"
 	"time"
 
@@ -308,5 +309,33 @@ func TestWinBackOfferStartTooSoon(t *testing.T) {
 				t.Errorf("winBackOfferStartTooSoon(%s) = %q, want refused %v", tt.start, got, tt.refused)
 			}
 		})
+	}
+}
+
+func TestWinBackOfferReplaced(t *testing.T) {
+	state := winBackOfferModel{
+		SubscriptionID: types.StringValue("1"), ReferenceName: types.StringValue("r"), OfferID: types.StringValue("o"),
+		Duration: types.StringValue("ONE_MONTH"), OfferMode: types.StringValue("FREE_TRIAL"),
+		PeriodCount: types.Int64Value(1), TargetSubscriptionPlanType: types.StringNull(),
+		Prices:    types.SetNull(types.ObjectType{AttrTypes: map[string]attr.Type{"price_point_id": types.StringType, "territory_id": types.StringType}}),
+		StartDate: types.StringValue("2027-07-01"), Priority: types.StringValue("HIGH"),
+	}
+
+	inPlace := state
+	inPlace.Priority = types.StringValue("NORMAL")
+	if winBackOfferReplaced(inPlace, state) {
+		t.Error("a priority change, which Apple updates in place, read as a replacement")
+	}
+
+	renamed := state
+	renamed.ReferenceName = types.StringValue("renamed")
+	if !winBackOfferReplaced(renamed, state) {
+		t.Error("a reference_name change, which replaces the offer, was not read as one")
+	}
+
+	unknown := state
+	unknown.TargetSubscriptionPlanType = types.StringUnknown()
+	if winBackOfferReplaced(unknown, state) {
+		t.Error("an unknown planned value read as a replacement")
 	}
 }
