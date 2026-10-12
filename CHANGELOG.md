@@ -46,6 +46,19 @@ FEATURES:
   subscription's introductory offer records, one per territory, including
   ones made in App Store Connect.
 
+* **`apple_subscription_win_back_offer` and `apple_subscription_win_back_offers`.**
+  Win-back offers — the discount or free period the App Store shows customers
+  whose subscription lapsed — as configuration, one offer per plan, priced per
+  storefront through the price point catalogue and its equalizations. The
+  eligibility rules (paid tenure, months since lapsing, wait between
+  redemptions), the dates, the priority and the App Store promotion change in
+  place; the prices, mode, duration and identifiers cannot, because Apple's
+  update request has no member for them, so changing one replaces the offer —
+  with a new `offer_id`, since Apple treats one as used once it has been.
+  Apple creates win-back offers only for a subscription App Review has
+  approved. The data source lists a subscription's offers, including ones made
+  in App Store Connect, and imports take `<subscription_id>/<offer_id>`.
+
 BUG FIXES:
 
 * **Renaming an `apple_beta_group` no longer replaces it.** `is_internal_group` and
