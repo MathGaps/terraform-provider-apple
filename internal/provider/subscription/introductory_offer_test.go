@@ -158,17 +158,59 @@ func TestDriftedEndDate(t *testing.T) {
 		t.Errorf("matching end dates reported as drifted to %v", got)
 	}
 
-	// One territory edited by hand is enough to plan an update.
+	// Every territory moved together drifts to their date.
+	surviving["USA"] = offer("o-usa", "USA", "", withEnd(strPtr("2026-12-31")))
 	surviving["GBR"] = offer("o-gbr", "GBR", "", withEnd(strPtr("2026-12-31")))
 	got, drifted := driftedEndDate(strPtr("2027-01-31"), surviving)
 	if !drifted || got == nil || *got != "2026-12-31" {
 		t.Errorf("driftedEndDate = %v, %v, want 2026-12-31, true", got, drifted)
 	}
 
-	// An end date removed at Apple drifts to null.
+	// Every end date removed at Apple drifts to null.
+	surviving["USA"] = offer("o-usa", "USA", "", withEnd(nil))
 	surviving["GBR"] = offer("o-gbr", "GBR", "", withEnd(nil))
 	if got, drifted := driftedEndDate(strPtr("2027-01-31"), surviving); !drifted || got != nil {
 		t.Errorf("driftedEndDate = %v, %v, want nil, true", got, drifted)
+	}
+}
+
+// A partial update leaves the records disagreeing, and one of them may hold
+// exactly what the configuration says. Reporting that record's date would make
+// the next plan empty and strand the rest, so disagreement reads back as a
+// value no configuration can equal.
+func TestDriftedEndDateWhenTerritoriesDisagree(t *testing.T) {
+	t.Parallel()
+
+	withEnd := func(end *string) models.SubscriptionIntroductoryOfferAttributes {
+		attrs := weekTrial
+		attrs.EndDate = end
+		return attrs
+	}
+
+	cases := map[string]struct {
+		usa, gbr *string
+	}{
+		// Configuration moved 2027-01-31 to 2027-06-30; GBR refused it.
+		"new date applied in one territory": {strPtr("2027-06-30"), strPtr("2027-01-31")},
+		// Configuration removed the end date; GBR refused it.
+		"end date cleared in one territory": {nil, strPtr("2027-01-31")},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			surviving := map[string]models.SubscriptionIntroductoryOffer{
+				"USA": offer("o-usa", "USA", "", withEnd(tc.usa)),
+				"GBR": offer("o-gbr", "GBR", "", withEnd(tc.gbr)),
+			}
+			got, drifted := driftedEndDate(strPtr("2027-01-31"), surviving)
+			if !drifted || got == nil || *got != endDatesDisagree {
+				t.Fatalf("driftedEndDate = %v, %v, want endDatesDisagree, true", got, drifted)
+			}
+			if tc.usa != nil && *got == *tc.usa {
+				t.Errorf("state took USA's date %q, which the configuration holds: no plan would repair GBR", *got)
+			}
+		})
 	}
 }
 

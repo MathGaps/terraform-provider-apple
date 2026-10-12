@@ -254,25 +254,38 @@ func survivingOffers(offerIDs map[string]string, reported []models.SubscriptionI
 	return surviving
 }
 
-// driftedEndDate reports the end date Apple holds when any surviving offer's
-// differs from the one in state, checking territories in sorted order so the
-// answer is the same on every run. An end date changed by hand in one
-// territory is enough to plan an update, which then puts every territory back.
-func driftedEndDate(current *string, surviving map[string]models.SubscriptionIntroductoryOffer) (*string, bool) {
-	territories := make([]string, 0, len(surviving))
-	for territory := range surviving {
-		territories = append(territories, territory)
-	}
-	sort.Strings(territories)
+// endDatesDisagree is what Read records when the surviving records hold
+// different end dates. It is no valid configuration value -- the validator
+// takes YYYY-MM-DD or null -- so the next plan always differs from it and sends
+// the configured end date to every record. Any one record's own date could
+// equal the configuration and hide the others: an end-date update that Apple
+// refused in some territories and not in others leaves exactly that.
+const endDatesDisagree = ""
 
-	for _, territory := range territories {
-		reported := surviving[territory].Attributes.EndDate
-		if !sameDate(current, reported) {
-			return reported, true
+// driftedEndDate reports the end date Apple holds when it differs from the one
+// in state. When every surviving record agrees that is their date; when they
+// disagree it is endDatesDisagree, so an end date changed by hand in one
+// territory, or a partial update, plans an update that puts every territory
+// back.
+func driftedEndDate(current *string, surviving map[string]models.SubscriptionIntroductoryOffer) (*string, bool) {
+	first := true
+	var agreed *string
+	for _, offer := range surviving {
+		reported := offer.Attributes.EndDate
+		if first {
+			agreed, first = reported, false
+			continue
+		}
+		if !sameDate(agreed, reported) {
+			disagree := endDatesDisagree
+			return &disagree, true
 		}
 	}
 
-	return current, false
+	if first || sameDate(current, agreed) {
+		return current, false
+	}
+	return agreed, true
 }
 
 // sameOfferTerms reports whether two records are the same offer in different
