@@ -40,10 +40,10 @@ Assuming every test passes and every destroy completes:
 |---|---|---|
 | **Permanent** | 2 | Device registrations that can never be removed — one iOS, one Mac. Terraform disables them; they still occupy slots until the membership year renews. |
 | **Transient peak** | 2 | Certificates alive at once, at most. Tests run sequentially and each revokes what it issued. |
-| **Net zero** | 17 | Resource kinds fully cleaned up: Bundle IDs, capabilities, Merchant IDs, Pass Type IDs, profiles, subscription groups, subscriptions, localizations, prices, promotional offers, in-app purchases, their localizations, price schedules and availability, beta groups and both TestFlight localizations. |
+| **Net zero** | 17 | Resource kinds fully cleaned up: Bundle IDs, capabilities, Merchant IDs, Pass Type IDs, profiles, subscription groups, subscriptions, localizations, prices, promotional offers, in-app purchases, their localizations, price schedules and availability, beta groups, both TestFlight localizations, and win-back offers if `APPLE_TEST_APPROVED_SUBSCRIPTION_ID` is set. |
 | **Opt-in residue** | 1 | A beta tester record in the account, if `APPLE_TEST_BETA_TESTER_EMAIL` is set. The membership is removed; the record is not — see [TestFlight](#testflight). |
 | **Opt-in removal** | 1 | A team member removed from Users and Access, if `APPLE_TEST_USER_EMAIL` and `APPLE_TEST_ALLOW_USER_REMOVAL` are both set. They have to be invited again — see [Team members](#team-members-users-and-access). |
-| **Reserved forever** | ~15 | Subscription and in-app purchase product identifiers, randomised per run, and possibly promotional offer codes, whose release Apple does not document. Invisible once deleted, drawn from an unlimited namespace — see [Subscriptions](#subscriptions) and [In-app purchases](#in-app-purchases). |
+| **Reserved forever** | ~16 | Subscription and in-app purchase product identifiers, randomised per run, plus one win-back `offer_id` when that test is opted into, and possibly promotional offer codes, whose release Apple does not document. Invisible once deleted, drawn from an unlimited namespace — see [Subscriptions](#subscriptions), [Win-back offers](#win-back-offers) and [In-app purchases](#in-app-purchases). |
 | **Touch nothing** | 30 | Tests rejected at plan time or read-only. |
 
 ### Certificates come back; devices do not
@@ -297,6 +297,27 @@ that is off. Their import steps ignore `start_date` and
 `target_subscription_plan_type`, which import adopts from Apple and Read never
 refreshes. Destroying the offer deletes its records; destroying the subscription
 would take them along anyway.
+### Win-back offers
+
+**These need a subscription App Review has approved**, which the suite cannot
+make: Apple creates a win-back offer only on an approved subscription, and the
+API has no way to get one approved. `TestAccWinBackOfferResource_basic` therefore
+skips unless `APPLE_TEST_APPROVED_SUBSCRIPTION_ID` names one — credentials and a
+test app are deliberately not enough. Point it at a subscription whose lapsed
+customers you do not mind being eligible for a test offer in a month's time:
+the offer starts thirty days out and is deleted at the end of the run, so no
+customer should ever see it, but an interrupted run leaves a scheduled offer
+that will go live.
+
+**The `offer_id` is treated as reserved forever.** Apple says it "must not have
+already been used for another offer in the same subscription group" — *used*,
+not *in use* — so each run randomises one of the form `tf_winback_<random>` the
+way product identifiers are randomised, and consumes it.
+
+| Test | Residue | Creates at Apple | What you see in the portal |
+|---|---|---|---|
+| `TestAccWinBackOfferResource_basic` | Net zero — opt-in, **consumes an `offer_id`** | One win-back offer on `APPLE_TEST_APPROVED_SUBSCRIPTION_ID`, priced in the USA at the 0.99 price point, starting in 30 days. Changes its priority, end date and wait between offers in place; reads it through `apple_subscription_win_back_offers`; imports it as `<subscription_id>/<offer_id>`; deletes it. | A scheduled win-back offer appears under the subscription's offers, changes, then is deleted. |
+| `TestAccWinBackOfferResource_validation` | Plan-only | Nothing. | No change. |
 
 ## In-app purchases
 
@@ -601,6 +622,12 @@ App Store Connect → the APPLE_TEST_APP_ID app → Monetization → Subscriptio
   Replace / DS / SubDS / PP <random>"     → delete it, and the
                                              subscriptions inside it first
 
+App Store Connect → APPLE_TEST_APPROVED_SUBSCRIPTION_ID → Win-Back Offers
+  Any offer whose offer ID starts with
+  "tf_winback_"                           → delete it before its start date,
+                                             or it goes live to lapsed
+                                             subscribers.
+
 App Store Connect → the APPLE_TEST_APP_ID app → Monetization → In-App Purchases
   Any purchase whose product ID starts with
   "com.test.terraform.iap"                → delete it. Its price and
@@ -663,6 +690,10 @@ export APPLE_APP_STORE_CONNECT_PRIVATE_KEY="$(cat AuthKey_XXXXXXXXXX.p8)"
 # TestAccApps* and TestAccBeta* test skips itself, because Apple's API cannot create the app
 # record they hang off.
 export APPLE_TEST_APP_ID=6448459855
+
+# Optional. Without it TestAccWinBackOfferResource_basic skips itself: Apple
+# creates win-back offers only on a subscription App Review has approved.
+export APPLE_TEST_APPROVED_SUBSCRIPTION_ID=6447497832
 
 # 1. Read-only first — proves the credentials work, creates nothing.
 TF_ACC=1 go test -v ./internal/provider/ -timeout 30m \
