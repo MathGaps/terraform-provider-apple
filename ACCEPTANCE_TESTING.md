@@ -40,11 +40,11 @@ Assuming every test passes and every destroy completes:
 |---|---|---|
 | **Permanent** | 2 | Device registrations that can never be removed — one iOS, one Mac. Terraform disables them; they still occupy slots until the membership year renews. |
 | **Transient peak** | 2 | Certificates alive at once, at most. Tests run sequentially and each revokes what it issued. |
-| **Net zero** | 16 | Resource kinds fully cleaned up: Bundle IDs, capabilities, Merchant IDs, Pass Type IDs, profiles, subscription groups, subscriptions, localizations, prices, in-app purchases, their localizations, price schedules and availability, beta groups and both TestFlight localizations. |
+| **Net zero** | 17 | Resource kinds fully cleaned up: Bundle IDs, capabilities, Merchant IDs, Pass Type IDs, profiles, subscription groups, subscriptions, localizations, prices, promotional offers, in-app purchases, their localizations, price schedules and availability, beta groups and both TestFlight localizations. |
 | **Opt-in residue** | 1 | A beta tester record in the account, if `APPLE_TEST_BETA_TESTER_EMAIL` is set. The membership is removed; the record is not — see [TestFlight](#testflight). |
 | **Opt-in removal** | 1 | A team member removed from Users and Access, if `APPLE_TEST_USER_EMAIL` and `APPLE_TEST_ALLOW_USER_REMOVAL` are both set. They have to be invited again — see [Team members](#team-members-users-and-access). |
-| **Reserved forever** | ~13 | Subscription and in-app purchase product identifiers, randomised per run. Invisible once deleted, drawn from an unlimited namespace — see [Subscriptions](#subscriptions) and [In-app purchases](#in-app-purchases). |
-| **Touch nothing** | 29 | Tests rejected at plan time or read-only. |
+| **Reserved forever** | ~15 | Subscription and in-app purchase product identifiers, randomised per run, and possibly promotional offer codes, whose release Apple does not document. Invisible once deleted, drawn from an unlimited namespace — see [Subscriptions](#subscriptions) and [In-app purchases](#in-app-purchases). |
+| **Touch nothing** | 30 | Tests rejected at plan time or read-only. |
 
 ### Certificates come back; devices do not
 
@@ -233,6 +233,9 @@ convention differs here.
 | `TestAccSubscriptionResource_basic` | Net zero | A group plus one subscription; renames it and changes its period from `ONE_MONTH` to `ONE_YEAR`; imports by bare ID. | A subscription appears inside the group showing *Missing Metadata*, its name and duration change, then both are deleted. |
 | `TestAccSubscriptionResource_completesMetadata` | Net zero | A group, a subscription, an `en-US` localization, a USA availability, and a USA price read from the price point catalogue. Imports all three children. | A subscription that leaves *Missing Metadata* once its name and price are set. All of it is then deleted. |
 | `TestAccSubscriptionPriceScheduleResource_basic` | Net zero | A group, a subscription, a USA+GBR availability, and a price schedule carrying a USA price plus the GBR point Apple equalizes from it — written in a single `PATCH`. Imports by the subscription ID, then adds a future-dated USA increase. | A subscription priced in two storefronts at once, then in three. All of it is then deleted. |
+| `TestAccSubscriptionPromotionalOfferResource_basic` | Net zero | A group, a subscription, a USA+GBR availability, and a `PAY_AS_YOU_GO` promotional offer priced in USA plus the GBR point Apple equalizes from it. Drops GBR in place, lists the offer through `apple_subscription_promotional_offers`, then imports it by bare ID and as `<subscription>/<offer_code>`. The offer code is randomised. | A subscription with a promotional offer in two storefronts, then one. All of it is then deleted, the offer first. |
+| `TestAccSubscriptionPromotionalOfferResource_freeTrial` | Net zero | A group, a subscription, a USA availability, and a `FREE_TRIAL` promotional offer whose one price names the territory and no price point. Run this first: it is the one shape Apple's schema permits but the provider has not seen accepted. | A subscription with a one-month free promotional offer, then all of it deleted. |
+| `TestAccSubscriptionPromotionalOfferResource_validation` | Plan-only | Nothing. A paid offer without a price point, an unknown duration and an offer code with a slash are rejected before Apple is asked. | No change. |
 | `TestAccSubscriptionResource_requiresReplace` | Net zero | A group plus a subscription, replaced by one with a different product ID. **Consumes two identifiers rather than one.** | One subscription appears, then is destroyed and replaced by another. |
 | `TestAccSubscriptionResource_validation` | Plan-only | Nothing. | No change. |
 | `TestAccAppsDataSource_basic` | Read-only | Nothing — apps cannot be created by the API. | No change. |
