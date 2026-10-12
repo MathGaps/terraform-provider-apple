@@ -29,12 +29,14 @@ sync takes upstream's version and drops ours.
 ## Versions
 
 Upstream's tags are in this repository as it left them; none of them is a
-release here. A MathGaps release that only repackages upstream is the next
-patch number after the upstream version it carries; one that adds the fork's own
-resources takes the next minor number instead, as any release with new features
-would. `CHANGELOG.md` says which upstream version each one carries and what is
-the fork's. The numbers therefore run ahead of upstream's and mean different
-things: pin `mathgaps/apple` by this repository's changelog, not by upstream's.
+release here. Each MathGaps release counts from the previous MathGaps release,
+never from upstream's number: one that only repackages upstream takes the next
+patch number, and one that adds the fork's own resources takes the next minor
+number, as any release with new features would. Every release is therefore
+greater than the one before it. `CHANGELOG.md` names the upstream version each
+release carries, separately from its own number, and what is the fork's. The
+numbers run ahead of upstream's and mean different things: pin `mathgaps/apple`
+by this repository's changelog, not by upstream's.
 
 ## Syncing with upstream
 
