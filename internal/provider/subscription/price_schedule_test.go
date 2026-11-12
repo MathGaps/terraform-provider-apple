@@ -201,3 +201,28 @@ func TestReconcileIgnoresPreservedAndPendingPrices(t *testing.T) {
 		t.Errorf("state not kept: %v", got)
 	}
 }
+
+func TestWriteApprovedKeepsPlansApart(t *testing.T) {
+	t.Parallel()
+	monthly := `{"type":"subscriptionPrices","id":"m","attributes":{"startDate":null,"preserved":false,"planType":"MONTHLY"},` +
+		`"relationships":{"territory":{"data":{"type":"territories","id":"USA"}},"subscriptionPricePoint":{"data":{"type":"subscriptionPricePoints","id":"pp9"}}}}`
+	upfront := `{"type":"subscriptionPrices","id":"u","attributes":{"startDate":null,"preserved":false,"planType":"UPFRONT"},` +
+		`"relationships":{"territory":{"data":{"type":"territories","id":"USA"}},"subscriptionPricePoint":{"data":{"type":"subscriptionPricePoints","id":"up1"}}}}`
+	client, requests := priceScheduleServer(t, "APPROVED", "["+monthly+","+upfront+"]")
+	r := &subscriptionPriceScheduleResource{client: client}
+
+	m := schedulePrice("USA", "pp9") // plan unset reads as MONTHLY
+	u := schedulePrice("USA", "up1")
+	u.PlanType = types.StringValue("UPFRONT")
+
+	var diags diag.Diagnostics
+	r.write(context.Background(), schedulePlan(m, u), &diags)
+	if diags.HasError() {
+		t.Fatalf("write failed: %v", diags)
+	}
+	for _, req := range requests() {
+		if req.method == http.MethodPost || req.method == http.MethodPatch {
+			t.Errorf("unexpected %s %s", req.method, req.path)
+		}
+	}
+}

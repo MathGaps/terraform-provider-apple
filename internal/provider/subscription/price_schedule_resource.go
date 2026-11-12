@@ -345,8 +345,8 @@ func today() string {
 	return time.Now().UTC().Format("2006-01-02")
 }
 
-// acceptsInitialPrice reports the the subscription states in which Apple takes a price
-// as an initial price, through the replace-all PATCH. In every other state a
+// acceptsInitialPrice reports whether the subscription state is one in which Apple takes
+// a price as an initial price, through the replace-all PATCH. In every other state a
 // price is a change, and a change is a new record.
 func acceptsInitialPrice(state string) bool {
 	switch models.SubscriptionState(state) {
@@ -355,6 +355,7 @@ func acceptsInitialPrice(state string) bool {
 		models.SubscriptionStateDeveloperActionNeeded:
 		return true
 	}
+	// A missing state keeps the behaviour from before the state was read.
 	return state == ""
 }
 
@@ -516,7 +517,7 @@ func (r *subscriptionPriceScheduleResource) postChangedPrices(subscriptionID str
 }
 
 // pricesToPost decides which planned prices are changes. effective maps a
-// territory to the price point in force (or scheduled) there; pointTerritory
+// slot (priceKey: territory and plan) to the price point in force (or scheduled) there; pointTerritory
 // maps a price point to its territory, for a plan entry that names no
 // territory_id. A territory in effect but absent from the plan is not touched.
 func pricesToPost(plan []apple.SubscriptionManualPrice, effective, pointTerritory map[string]string) ([]apple.SubscriptionManualPrice, error) {
@@ -529,7 +530,7 @@ func pricesToPost(plan []apple.SubscriptionManualPrice, effective, pointTerritor
 		if territory == "" {
 			return nil, fmt.Errorf("cannot tell which territory price point '%s' belongs to: set territory_id on that price", price.PricePointID)
 		}
-		if effective[territory] == price.PricePointID {
+		if effective[priceKey(territory, price.PlanType)] == price.PricePointID {
 			continue
 		}
 		price.TerritoryID = territory
@@ -559,17 +560,28 @@ func effectiveRecords(reported []models.SubscriptionPrice) map[string]models.Sub
 	return effective
 }
 
-// recordKey is the territory a record prices, or its price point when Apple
-// did not report one.
+// priceKey names the slot a price fills: a territory and a plan. An unset
+// plan is MONTHLY, on both sides, because Apple reports planType on prices
+// that never named one.
+func priceKey(territory string, plan *models.SubscriptionPlanType) string {
+	p := models.SubscriptionPlanType("MONTHLY")
+	if plan != nil && *plan != "" {
+		p = *plan
+	}
+	return territory + "/" + string(p)
+}
+
+// recordKey is the slot a record prices; the territory falls back to its price
+// point when Apple did not report one.
 func recordKey(price models.SubscriptionPrice) string {
 	if price.Relationships == nil {
 		return ""
 	}
 	if t := price.Relationships.Territory; t != nil && t.Data.ID != "" {
-		return t.Data.ID
+		return priceKey(t.Data.ID, price.Attributes.PlanType)
 	}
 	if p := price.Relationships.SubscriptionPricePoint; p != nil {
-		return p.Data.ID
+		return priceKey(p.Data.ID, price.Attributes.PlanType)
 	}
 	return ""
 }
