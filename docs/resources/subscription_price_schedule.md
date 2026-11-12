@@ -4,11 +4,11 @@ page_title: "apple_subscription_price_schedule Resource - apple"
 subcategory: ""
 description: |-
   Sets every price of an auto-renewable subscription in one request.
-  This is the bulk counterpart to apple_subscription_price. That resource maps onto POST /v1/subscriptionPrices, which takes one price point in one territory, so pricing a subscription in all 175 App Store storefronts through it means 175 resources and 175 API calls on apply — and a refresh that lists the subscription's whole price collection once per resource, because Apple publishes no GET for a single price. This resource sends the same set as a single PATCH /v1/subscriptions/{id} carrying the prices inline, and reads them back in one listing.
+  This is the bulk counterpart to apple_subscription_price. That resource maps onto POST /v1/subscriptionPrices, which takes one price point in one territory, so pricing a subscription in all 175 App Store storefronts through it means 175 resources and 175 API calls on apply — and a refresh that lists the subscription's whole price collection once per resource, because Apple publishes no GET for a single price. This resource sends the same set as a single PATCH /v1/subscriptions/{id} carrying the prices inline, and reads them back in one listing. Once the subscription is approved Apple accepts a price only as a change, so the resource then sends one POST /v1/subscriptionPrices for each territory whose price point differs from the one in effect.
   Pair it with apple_subscription_price_point_equalizations, which maps a base price point to the equivalent point in every other territory: the two together are what App Store Connect's own price matrix does.
   A price is never expressed as a number. Apple publishes a catalogue of price points, each fixing a customer price and the developer proceeds for one territory, and a price references one of them. Price point IDs are scoped to the subscription they were read from.
   ~> An apple_subscription_availability has to exist first. Apple rejects pricing for a subscription with no availability record, and answers with a message that mentions neither availability nor a territory. Nothing in a price references one, so declare the ordering with depends_on.
-  ~> Apple refuses to change prices while the subscription is in review. The subscription has to be in a state that still accepts metadata, such as MISSING_METADATA, READY_TO_SUBMIT or DEVELOPER_ACTION_NEEDED.
+  ~> Apple refuses price writes while the subscription is in review (WAITING_FOR_REVIEW, IN_REVIEW, PENDING_BINARY_APPROVAL). In MISSING_METADATA, READY_TO_SUBMIT and DEVELOPER_ACTION_NEEDED the prices are set as initial prices; in any other state (for example APPROVED) a changed price is a new price record that takes effect on start_date, or as soon as Apple allows when it is unset. Once a price change is in effect it cannot be reverted.
   ~> This resource cannot be destroyed. A subscription that has been priced stays priced, and Apple deletes only price changes scheduled for the future — a live price is what the subscription currently costs. terraform destroy drops the resource from state and warns; the prices remain in App Store Connect. Deleting the subscription removes them with it.
   Do not manage the same subscription with both this resource and apple_subscription_price: each write here replaces the subscription's manual price set, so a price only the other resource knows about would be removed behind its back.
 ---
@@ -17,7 +17,7 @@ description: |-
 
 Sets every price of an auto-renewable subscription in one request.
 
-This is the bulk counterpart to `apple_subscription_price`. That resource maps onto `POST /v1/subscriptionPrices`, which takes one price point in one territory, so pricing a subscription in all 175 App Store storefronts through it means 175 resources and 175 API calls on apply — and a refresh that lists the subscription's whole price collection once per resource, because Apple publishes no `GET` for a single price. This resource sends the same set as a single `PATCH /v1/subscriptions/{id}` carrying the prices inline, and reads them back in one listing.
+This is the bulk counterpart to `apple_subscription_price`. That resource maps onto `POST /v1/subscriptionPrices`, which takes one price point in one territory, so pricing a subscription in all 175 App Store storefronts through it means 175 resources and 175 API calls on apply — and a refresh that lists the subscription's whole price collection once per resource, because Apple publishes no `GET` for a single price. This resource sends the same set as a single `PATCH /v1/subscriptions/{id}` carrying the prices inline, and reads them back in one listing. Once the subscription is approved Apple accepts a price only as a change, so the resource then sends one `POST /v1/subscriptionPrices` for each territory whose price point differs from the one in effect.
 
 Pair it with `apple_subscription_price_point_equalizations`, which maps a base price point to the equivalent point in every other territory: the two together are what App Store Connect's own price matrix does.
 
@@ -25,7 +25,7 @@ A price is never expressed as a number. Apple publishes a catalogue of price poi
 
 ~> **An `apple_subscription_availability` has to exist first.** Apple rejects pricing for a subscription with no availability record, and answers with a message that mentions neither availability nor a territory. Nothing in a price references one, so declare the ordering with `depends_on`.
 
-~> **Apple refuses to change prices while the subscription is in review.** The subscription has to be in a state that still accepts metadata, such as `MISSING_METADATA`, `READY_TO_SUBMIT` or `DEVELOPER_ACTION_NEEDED`.
+~> **Apple refuses price writes while the subscription is in review** (`WAITING_FOR_REVIEW`, `IN_REVIEW`, `PENDING_BINARY_APPROVAL`). In `MISSING_METADATA`, `READY_TO_SUBMIT` and `DEVELOPER_ACTION_NEEDED` the prices are set as initial prices; in any other state (for example `APPROVED`) a changed price is a new price record that takes effect on `start_date`, or as soon as Apple allows when it is unset. Once a price change is in effect it cannot be reverted.
 
 ~> **This resource cannot be destroyed.** A subscription that has been priced stays priced, and Apple deletes only price changes scheduled for the future — a live price is what the subscription currently costs. `terraform destroy` drops the resource from state and warns; the prices remain in App Store Connect. Deleting the subscription removes them with it.
 
@@ -171,7 +171,7 @@ resource "apple_subscription_price_schedule" "pro_monthly" {
 
 - `prices` (Attributes Set) The complete set of prices the subscription should have. A set, because Apple returns them in no particular order and their order carries no meaning. At least one is required — a subscription stays in `MISSING_METADATA` until it has a price.
 
-Every write replaces the whole set, so a price removed from the configuration is removed at Apple, subject to Apple's rule that a price already in effect cannot be withdrawn. (see [below for nested schema](#nestedatt--prices))
+While the subscription still accepts metadata every write replaces the whole set, so a price removed from the configuration is removed at Apple. On an approved subscription only the territories named here are written, and a price already in effect cannot be withdrawn. (see [below for nested schema](#nestedatt--prices))
 - `subscription_id` (String) The ID of the `apple_subscription` these prices apply to. Cannot be changed after creation.
 
 ### Read-Only
@@ -188,8 +188,8 @@ Required:
 Optional:
 
 - `plan_type` (String) Which plan the price applies to: `MONTHLY` for the recurring price, or `UPFRONT` for a pre-paid plan where the customer pays the whole term in advance.
-- `preserve_current_price` (Boolean) Whether existing subscribers keep the price they signed up at rather than moving to this one. Applies only when this price replaces an earlier one.
-- `start_date` (String) The date the price takes effect, as a plain date in `YYYY-MM-DD` form — not a timestamp. Omit it for a price that takes effect immediately.
+- `preserve_current_price` (Boolean) Whether existing subscribers keep the price they signed up at rather than moving to this one. Applies when this price replaces an earlier one, which is how an approved subscription is changed.
+- `start_date` (String) The date the price takes effect, as a plain date in `YYYY-MM-DD` form — not a timestamp. Unset is the soonest date Apple allows. Apple ignores dates for an initial price, which is what is written until the subscription is approved.
 - `territory_id` (String) The three-letter Apple territory code this price applies to, for example `USA`, `GBR` or `EGY`. Optional: a price point already encodes its territory and Apple infers it. Setting it makes an equalized fan-out self-describing, which is the case it exists for.
 
 ## Import

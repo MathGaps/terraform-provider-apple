@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/AhmedOsman00/terraform-provider-apple/internal/apple"
 	"github.com/AhmedOsman00/terraform-provider-apple/internal/apple/models"
@@ -51,7 +52,9 @@ func (r *subscriptionPriceScheduleResource) Schema(_ context.Context, _ resource
 			"calls on apply — and a refresh that lists the subscription's whole price collection once per " +
 			"resource, because Apple publishes no `GET` for a single price. This resource sends the same " +
 			"set as a single `PATCH /v1/subscriptions/{id}` carrying the prices inline, and reads them " +
-			"back in one listing.\n\n" +
+			"back in one listing. Once the subscription is approved Apple accepts a price only as a " +
+			"change, so the resource then sends one `POST /v1/subscriptionPrices` for each territory " +
+			"whose price point differs from the one in effect.\n\n" +
 			"Pair it with `apple_subscription_price_point_equalizations`, which maps a base price point " +
 			"to the equivalent point in every other territory: the two together are what App Store " +
 			"Connect's own price matrix does.\n\n" +
@@ -62,9 +65,12 @@ func (r *subscriptionPriceScheduleResource) Schema(_ context.Context, _ resource
 			"subscription with no availability record, and answers with a message that mentions neither " +
 			"availability nor a territory. Nothing in a price references one, so declare the ordering " +
 			"with `depends_on`.\n\n" +
-			"~> **Apple refuses to change prices while the subscription is in review.** The subscription " +
-			"has to be in a state that still accepts metadata, such as `MISSING_METADATA`, " +
-			"`READY_TO_SUBMIT` or `DEVELOPER_ACTION_NEEDED`.\n\n" +
+			"~> **Apple refuses price writes while the subscription is in review** " +
+			"(`WAITING_FOR_REVIEW`, `IN_REVIEW`, `PENDING_BINARY_APPROVAL`). In `MISSING_METADATA`, " +
+			"`READY_TO_SUBMIT` and `DEVELOPER_ACTION_NEEDED` the prices are set as initial prices; in " +
+			"any other state (for example `APPROVED`) a changed price is a new price record that takes " +
+			"effect on `start_date`, or as soon as Apple allows when it is unset. Once a price change " +
+			"is in effect it cannot be reverted.\n\n" +
 			"~> **This resource cannot be destroyed.** A subscription that has been priced stays priced, " +
 			"and Apple deletes only price changes scheduled for the future — a live price is what the " +
 			"subscription currently costs. `terraform destroy` drops the resource from state and warns; " +
@@ -96,9 +102,10 @@ func (r *subscriptionPriceScheduleResource) Schema(_ context.Context, _ resource
 					"because Apple returns them in no particular order and their order carries no " +
 					"meaning. At least one is required — a subscription stays in `MISSING_METADATA` " +
 					"until it has a price.\n\n" +
-					"Every write replaces the whole set, so a price removed from the configuration is " +
-					"removed at Apple, subject to Apple's rule that a price already in effect cannot be " +
-					"withdrawn.",
+					"While the subscription still accepts metadata every write replaces the whole set, so " +
+					"a price removed from the configuration is removed at Apple. On an approved " +
+					"subscription only the territories named here are written, and a price already in " +
+					"effect cannot be withdrawn.",
 				Required: true,
 				Validators: []validator.Set{
 					setvalidator.SizeAtLeast(1),
@@ -124,15 +131,17 @@ func (r *subscriptionPriceScheduleResource) Schema(_ context.Context, _ resource
 						},
 						"start_date": schema.StringAttribute{
 							MarkdownDescription: "The date the price takes effect, as a plain date in " +
-								"`YYYY-MM-DD` form — not a timestamp. Omit it for a price that takes " +
-								"effect immediately.",
+								"`YYYY-MM-DD` form — not a timestamp. Unset is the soonest date Apple " +
+								"allows. Apple ignores dates for an initial price, which is what is " +
+								"written until the subscription is approved.",
 							Optional:   true,
 							Validators: []validator.String{StartDateValidator},
 						},
 						"preserve_current_price": schema.BoolAttribute{
 							MarkdownDescription: "Whether existing subscribers keep the price they signed " +
-								"up at rather than moving to this one. Applies only when this price " +
-								"replaces an earlier one.",
+								"up at rather than moving to this one. Applies when this price " +
+								"replaces an earlier one, which is how an approved subscription is " +
+								"changed.",
 							Optional: true,
 						},
 						"plan_type": schema.StringAttribute{
@@ -214,7 +223,7 @@ func (r *subscriptionPriceScheduleResource) Read(ctx context.Context, req resour
 	}
 
 	state.ID = types.StringValue(subscriptionID)
-	state.Prices = reconcileSchedulePrices(state.Prices, prices)
+	state.Prices = reconcileSchedulePrices(state.Prices, prices, today())
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -323,14 +332,51 @@ func (r *subscriptionPriceScheduleResource) ImportState(ctx context.Context, req
 	state := subscriptionPriceScheduleModel{
 		ID:             types.StringValue(req.ID),
 		SubscriptionID: types.StringValue(req.ID),
-		Prices:         reconcileSchedulePrices(nil, prices),
+		Prices:         reconcileSchedulePrices(nil, prices, today()),
 	}
 
 	diags := resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 }
 
-// write sends the whole price set in one PATCH.
+// today is the date the pending-price rule in reconcileSchedulePrices compares
+// start dates against; tests pass their own.
+func today() string {
+	return time.Now().UTC().Format("2006-01-02")
+}
+
+// acceptsInitialPrice reports whether the subscription state is one in which Apple takes
+// a price as an initial price, through the replace-all PATCH. In every other state a
+// price is a change, and a change is a new record.
+func acceptsInitialPrice(state string) bool {
+	switch models.SubscriptionState(state) {
+	case models.SubscriptionStateMissingMetadata,
+		models.SubscriptionStateReadyToSubmit,
+		models.SubscriptionStateDeveloperActionNeeded:
+		return true
+	}
+	// A missing state keeps the behaviour from before the state was read.
+	return state == ""
+}
+
+// inReview reports the states in which Apple refuses price writes altogether.
+func inReview(state string) bool {
+	switch models.SubscriptionState(state) {
+	case models.SubscriptionStateWaitingForReview,
+		models.SubscriptionStateInReview,
+		models.SubscriptionStatePendingBinaryApproval:
+		return true
+	}
+	return false
+}
+
+// write puts the price set at Apple the way the subscription's state allows.
+//
+// While the subscription accepts metadata, one PATCH replaces the whole set as
+// initial prices. Apple rejects that request for any other state with 409
+// "Initial price cannot be created again after subscription is approved": a
+// price there is a change, made by POST /v1/subscriptionPrices, one territory
+// at a time.
 func (r *subscriptionPriceScheduleResource) write(ctx context.Context, plan *subscriptionPriceScheduleModel, diags *diag.Diagnostics) {
 	subscriptionID := plan.SubscriptionID.ValueString()
 	ctx = tflog.SetField(ctx, "subscription_id", subscriptionID)
@@ -351,9 +397,31 @@ func (r *subscriptionPriceScheduleResource) write(ctx context.Context, plan *sub
 		prices = append(prices, manual)
 	}
 
-	tflog.Debug(ctx, "Writing subscription price schedule", map[string]interface{}{"price_count": len(prices)})
+	sub, err := r.client.GetSubscription(subscriptionID)
+	if err != nil {
+		diags.AddError(
+			"Error Reading Subscription Before Writing Its Prices",
+			fmt.Sprintf("Could not read subscription '%s' to learn its state: %s", subscriptionID, err.Error()),
+		)
+		return
+	}
+	state := ""
+	if sub.Attributes.State != nil {
+		state = string(*sub.Attributes.State)
+	}
+	ctx = tflog.SetField(ctx, "subscription_state", state)
 
-	if _, err := r.client.SetSubscriptionPrices(subscriptionID, prices, nil); err != nil {
+	posting := !acceptsInitialPrice(state)
+	count := len(prices)
+
+	tflog.Debug(ctx, "Writing subscription price schedule", map[string]interface{}{"price_count": len(prices), "post": posting})
+
+	if posting {
+		err = r.postChangedPrices(subscriptionID, prices, &count)
+	} else {
+		_, err = r.client.SetSubscriptionPrices(subscriptionID, prices, nil)
+	}
+	if err != nil {
 		errMsg := err.Error()
 		switch {
 		case strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "404"):
@@ -365,6 +433,14 @@ func (r *subscriptionPriceScheduleResource) write(ctx context.Context, plan *sub
 					"apple_subscription_price_points data source scoped to subscription '%s', or from "+
 					"apple_subscription_price_point_equalizations on a price point of that subscription.",
 					subscriptionID, err.Error(), subscriptionID),
+			)
+		case strings.Contains(errMsg, "Initial price cannot be created again"):
+			diags.AddError(
+				"Error Writing Subscription Price Schedule",
+				fmt.Sprintf("Could not write %d price(s) for subscription '%s' (state %s): %s\n\n"+
+					"Apple refuses an initial price once a subscription is approved. The provider should "+
+					"have chosen POST /v1/subscriptionPrices for state %s, so this is a bug in the provider: "+
+					"please report it.", count, subscriptionID, state, err.Error(), state),
 			)
 		case strings.Contains(errMsg, "processing the pricing information"):
 			// Apple answers a rejected price with "An error occurred while
@@ -383,15 +459,22 @@ func (r *subscriptionPriceScheduleResource) write(ctx context.Context, plan *sub
 					"resource depend on it.\n\n"+
 					"The same message also covers a price point that is not valid for this subscription, "+
 					"and two prices for the same territory at the same start date.",
-					len(prices), subscriptionID, err.Error(), subscriptionID),
+					count, subscriptionID, err.Error(), subscriptionID),
 			)
 		default:
+			hint := fmt.Sprintf("The subscription is in state %s. On a state outside MISSING_METADATA, "+
+				"READY_TO_SUBMIT and DEVELOPER_ACTION_NEEDED a price change is made by POST "+
+				"/v1/subscriptionPrices, one request per territory; this is the request that failed.", state)
+			if state == "" {
+				hint = "Apple reported no state for the subscription."
+			}
+			if inReview(state) {
+				hint += " Apple refuses price writes while the subscription is in review."
+			}
 			diags.AddError(
 				"Error Writing Subscription Price Schedule",
-				fmt.Sprintf("Could not write %d price(s) for subscription '%s': %s\n\n"+
-					"Apple refuses to change prices while the subscription is in review: it has to be in "+
-					"a state that still accepts metadata, such as MISSING_METADATA, READY_TO_SUBMIT or "+
-					"DEVELOPER_ACTION_NEEDED.", len(prices), subscriptionID, err.Error()),
+				fmt.Sprintf("Could not write %d price(s) for subscription '%s': %s\n\n%s",
+					count, subscriptionID, err.Error(), hint),
 			)
 		}
 		tflog.Error(ctx, "Failed to write subscription price schedule", map[string]interface{}{"error": err.Error()})
@@ -401,7 +484,152 @@ func (r *subscriptionPriceScheduleResource) write(ctx context.Context, plan *sub
 	plan.ID = types.StringValue(subscriptionID)
 }
 
+// postChangedPrices creates one price record for each planned territory whose
+// price point is not the one in effect. count is set to how many were needed.
+func (r *subscriptionPriceScheduleResource) postChangedPrices(subscriptionID string, plan []apple.SubscriptionManualPrice, count *int) error {
+	reported, err := r.client.GetSubscriptionPrices(subscriptionID)
+	if err != nil {
+		return fmt.Errorf("could not list the current prices: %w", err)
+	}
+
+	effective, pointTerritory := effectivePrices(reported)
+	posts, err := pricesToPost(plan, effective, pointTerritory)
+	if err != nil {
+		return err
+	}
+	*count = len(posts)
+
+	for _, price := range posts {
+		var territory *string
+		if price.TerritoryID != "" {
+			territory = &price.TerritoryID
+		}
+		attributes := &models.SubscriptionPriceCreateAttributes{
+			StartDate:            price.StartDate,
+			PreserveCurrentPrice: price.PreserveCurrentPrice,
+			PlanType:             price.PlanType,
+		}
+		if _, err := r.client.CreateSubscriptionPrice(subscriptionID, price.PricePointID, territory, attributes, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// pricesToPost decides which planned prices are changes. effective maps a
+// slot (priceKey: territory and plan) to the price point in force (or scheduled) there; pointTerritory
+// maps a price point to its territory, for a plan entry that names no
+// territory_id. A territory in effect but absent from the plan is not touched.
+func pricesToPost(plan []apple.SubscriptionManualPrice, effective, pointTerritory map[string]string) ([]apple.SubscriptionManualPrice, error) {
+	var posts []apple.SubscriptionManualPrice
+	for _, price := range plan {
+		territory := price.TerritoryID
+		if territory == "" {
+			territory = pointTerritory[price.PricePointID]
+		}
+		if territory == "" {
+			return nil, fmt.Errorf("cannot tell which territory price point '%s' belongs to: set territory_id on that price", price.PricePointID)
+		}
+		if effective[priceKey(territory, price.PlanType)] == price.PricePointID {
+			continue
+		}
+		price.TerritoryID = territory
+		posts = append(posts, price)
+	}
+	return posts, nil
+}
+
+// effectiveRecords reduces Apple's listing to one record per territory: the
+// preserved records are dropped and the one with the greatest start date is
+// kept (a null start date is in force since before any dated record). The
+// result is the current price, or the pending change when one is scheduled.
+func effectiveRecords(reported []models.SubscriptionPrice) map[string]models.SubscriptionPrice {
+	effective := make(map[string]models.SubscriptionPrice)
+	for _, price := range reported {
+		if price.Attributes.Preserved != nil && *price.Attributes.Preserved {
+			continue
+		}
+		key := recordKey(price)
+		if key == "" {
+			continue
+		}
+		if kept, ok := effective[key]; !ok || startsAfter(price, kept) {
+			effective[key] = price
+		}
+	}
+	return effective
+}
+
+// priceKey names the slot a price fills: a territory and a plan. An unset
+// plan is MONTHLY, on both sides, because Apple reports planType on prices
+// that never named one.
+func priceKey(territory string, plan *models.SubscriptionPlanType) string {
+	p := models.SubscriptionPlanType("MONTHLY")
+	if plan != nil && *plan != "" {
+		p = *plan
+	}
+	return territory + "/" + string(p)
+}
+
+// recordKey is the slot a record prices; the territory falls back to its price
+// point when Apple did not report one.
+func recordKey(price models.SubscriptionPrice) string {
+	if price.Relationships == nil {
+		return ""
+	}
+	if t := price.Relationships.Territory; t != nil && t.Data.ID != "" {
+		return priceKey(t.Data.ID, price.Attributes.PlanType)
+	}
+	if p := price.Relationships.SubscriptionPricePoint; p != nil {
+		return priceKey(p.Data.ID, price.Attributes.PlanType)
+	}
+	return ""
+}
+
+func pointID(price models.SubscriptionPrice) string {
+	if price.Relationships == nil || price.Relationships.SubscriptionPricePoint == nil {
+		return ""
+	}
+	return price.Relationships.SubscriptionPricePoint.Data.ID
+}
+
+// startsAfter reports whether a starts strictly later than b; a null start
+// date is earlier than every date.
+func startsAfter(a, b models.SubscriptionPrice) bool {
+	as, bs := "", ""
+	if a.Attributes.StartDate != nil {
+		as = *a.Attributes.StartDate
+	}
+	if b.Attributes.StartDate != nil {
+		bs = *b.Attributes.StartDate
+	}
+	return as > bs
+}
+
+// effectivePrices returns the effective price point per territory, and the
+// territory of every price point the listing mentions.
+func effectivePrices(reported []models.SubscriptionPrice) (effective, pointTerritory map[string]string) {
+	effective = make(map[string]string)
+	pointTerritory = make(map[string]string)
+	for _, price := range reported {
+		if id := pointID(price); id != "" && price.Relationships != nil &&
+			price.Relationships.Territory != nil && price.Relationships.Territory.Data.ID != "" {
+			pointTerritory[id] = price.Relationships.Territory.Data.ID
+		}
+	}
+	for key, price := range effectiveRecords(reported) {
+		effective[key] = pointID(price)
+	}
+	return effective, pointTerritory
+}
+
 // reconcileSchedulePrices matches Apple's prices against what state holds.
+//
+// Apple lists every price record of a subscription, including those that ended
+// and those kept for subscribers who stayed (preserved). Only the effective
+// record of each territory is matched -- see effectiveRecords -- so a state
+// price whose price point is no longer effective is dropped, and shows as a
+// diff only if the configuration still wants it.
 //
 // A price state already knows about is kept exactly as configured. Apple
 // reports the territory of every price whether or not one was sent, and reports
@@ -412,43 +640,46 @@ func (r *subscriptionPriceScheduleResource) write(ctx context.Context, plan *sub
 // widening the attribute, because a computed attribute inside a set makes the
 // element unknown at plan time.
 //
-// A price Apple reports that state does not know about is added with Apple's
-// own values, so a price added in App Store Connect surfaces as drift rather
-// than silently disappearing.
-//
-// Matching is by price point, which is also what makes two prices sharing a
-// price point indistinguishable here. They would differ only by start date, and
-// scheduling the same price twice is not a thing a configuration does.
-func reconcileSchedulePrices(state []subscriptionSchedulePriceModel, reported []models.SubscriptionPrice) []subscriptionSchedulePriceModel {
-	byPricePoint := make(map[string]models.SubscriptionPrice, len(reported))
-	for _, price := range reported {
-		if price.Relationships == nil || price.Relationships.SubscriptionPricePoint == nil {
-			continue
-		}
-		if pointID := price.Relationships.SubscriptionPricePoint.Data.ID; pointID != "" {
-			byPricePoint[pointID] = price
+// An effective price Apple reports that state does not know about is added with
+// Apple's own values, so a price added in App Store Connect surfaces as drift
+// rather than silently disappearing. One that has not started yet (its start
+// date is after today) is adopted without that date and with
+// preserve_current_price set when a record of its territory that it replaces is
+// preserved, which is the shape of the configuration that would schedule it.
+func reconcileSchedulePrices(state []subscriptionSchedulePriceModel, reported []models.SubscriptionPrice, today string) []subscriptionSchedulePriceModel {
+	byPricePoint := make(map[string]models.SubscriptionPrice)
+	for _, price := range effectiveRecords(reported) {
+		if id := pointID(price); id != "" {
+			byPricePoint[id] = price
 		}
 	}
 
 	reconciled := make([]subscriptionSchedulePriceModel, 0, len(byPricePoint))
 	for _, price := range state {
-		pointID := price.PricePointID.ValueString()
-		if _, ok := byPricePoint[pointID]; !ok {
+		id := price.PricePointID.ValueString()
+		if _, ok := byPricePoint[id]; !ok {
 			continue
 		}
 		reconciled = append(reconciled, price)
-		delete(byPricePoint, pointID)
+		delete(byPricePoint, id)
 	}
 
-	for pointID, price := range byPricePoint {
+	for _, price := range byPricePoint {
 		adopted := subscriptionSchedulePriceModel{
-			PricePointID: types.StringValue(pointID),
+			PricePointID: types.StringValue(pointID(price)),
 			StartDate:    stringOrNull(price.Attributes.StartDate),
 			// preserveCurrentPrice is an instruction, not a property: Apple
-			// reports only its outcome, through "preserved", which this
-			// resource does not model. Leave the input null so it matches a
-			// configuration that does not set it.
+			// reports only its outcome, through "preserved" on the record that
+			// was kept. Leave the input null so it matches a configuration
+			// that does not set it, except for a pending price below.
 			PreserveCurrentPrice: types.BoolNull(),
+		}
+
+		if price.Attributes.StartDate != nil && *price.Attributes.StartDate > today {
+			adopted.StartDate = types.StringNull()
+			if supersedesPreserved(reported, price) {
+				adopted.PreserveCurrentPrice = types.BoolValue(true)
+			}
 		}
 
 		if price.Relationships != nil {
@@ -462,4 +693,19 @@ func reconcileSchedulePrices(state []subscriptionSchedulePriceModel, reported []
 	}
 
 	return reconciled
+}
+
+// supersedesPreserved reports whether another record of the pending price's
+// territory is preserved, i.e. subscribers were held on what it replaces.
+func supersedesPreserved(reported []models.SubscriptionPrice, pending models.SubscriptionPrice) bool {
+	key := recordKey(pending)
+	for _, other := range reported {
+		if other.ID == pending.ID || recordKey(other) != key {
+			continue
+		}
+		if other.Attributes.Preserved != nil && *other.Attributes.Preserved {
+			return true
+		}
+	}
+	return false
 }
