@@ -145,9 +145,9 @@ func (r *subscriptionPriceScheduleResource) Schema(_ context.Context, _ resource
 							Optional: true,
 						},
 						"plan_type": schema.StringAttribute{
-							MarkdownDescription: "Which plan the price applies to: `MONTHLY` for the " +
-								"recurring price, or `UPFRONT` for a pre-paid plan where the customer " +
-								"pays the whole term in advance.",
+							MarkdownDescription: "Which plan the price applies to. Unset is the ordinary price, which Apple " +
+								"reports as `UPFRONT`. Set `MONTHLY` only for a monthly-payment plan on a " +
+								"longer commitment.",
 							Optional:   true,
 							Validators: []validator.String{PlanTypeValidator},
 						},
@@ -561,10 +561,11 @@ func effectiveRecords(reported []models.SubscriptionPrice) map[string]models.Sub
 }
 
 // priceKey names the slot a price fills: a territory and a plan. An unset
-// plan is MONTHLY, on both sides, because Apple reports planType on prices
-// that never named one.
+// plan is UPFRONT, on both sides: Apple reports planType UPFRONT on the
+// ordinary price of a subscription whose price never named one (read live from
+// prod's pro_monthly, 2026-11-12).
 func priceKey(territory string, plan *models.SubscriptionPlanType) string {
-	p := models.SubscriptionPlanType("MONTHLY")
+	p := models.SubscriptionPlanType("UPFRONT")
 	if plan != nil && *plan != "" {
 		p = *plan
 	}
