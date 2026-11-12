@@ -1,3 +1,15 @@
+## 0.6.3 (November 12, 2026)
+
+BUG FIXES:
+
+* **`apple_subscription_price_schedule`: a price changed in App Store Connect
+  reads back without a `plan_type` diff.** Apple reports `planType: UPFRONT` on
+  the ordinary price, the same plan as none. A price Apple reported that state
+  did not know was adopted with `plan_type = "UPFRONT"`, so a configuration that
+  leaves `plan_type` unset planned an update for ever. The adopted price now
+  takes the form of the price it replaced (unset stays unset, an explicit
+  `"UPFRONT"` stays so); any other plan, such as `MONTHLY`, is Apple's value.
+
 ## 0.6.2 (November 12, 2026)
 
 BUG FIXES:

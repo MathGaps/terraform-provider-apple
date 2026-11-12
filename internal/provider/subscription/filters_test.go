@@ -518,8 +518,9 @@ func TestReconcileSchedulePricesAdoptsUnknownPrices(t *testing.T) {
 	if got := adopted.StartDate.ValueString(); got != startDate {
 		t.Errorf("start_date = %q, want %q", got, startDate)
 	}
-	if got := adopted.PlanType.ValueString(); got != "UPFRONT" {
-		t.Errorf("plan_type = %q, want UPFRONT", got)
+	// UPFRONT is the plan of a price that names none.
+	if !adopted.PlanType.IsNull() {
+		t.Errorf("plan_type = %v, want null", adopted.PlanType)
 	}
 	// preserveCurrentPrice is an instruction Apple never reports back.
 	if !adopted.PreserveCurrentPrice.IsNull() {
@@ -543,5 +544,34 @@ func TestReconcileSchedulePricesSkipsPricesWithoutAPricePoint(t *testing.T) {
 
 	if len(reconciled) != 0 {
 		t.Fatalf("got %d prices, want 0: neither reported a price point", len(reconciled))
+	}
+}
+
+// TestReconcileSchedulePricesReadsUpfrontAsUnset covers a price change made
+// outside Terraform: Apple reports UPFRONT on the ordinary plan, which is the
+// same plan as none, so the adopted price takes the form the price it replaced
+// used and a configuration of either form plans no change.
+func TestReconcileSchedulePricesReadsUpfrontAsUnset(t *testing.T) {
+	upfront := models.SubscriptionPlanType("UPFRONT")
+	pending := "2026-11-13"
+	reported := []models.SubscriptionPrice{
+		reportedPrice("old", "point-8", "USA", nil, &upfront),
+		reportedPrice("new", "point-9", "USA", &pending, &upfront),
+	}
+
+	for name, form := range map[string]types.String{
+		"unset":    types.StringNull(),
+		"explicit": types.StringValue("UPFRONT"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			state := []subscriptionSchedulePriceModel{{PricePointID: types.StringValue("point-8"), PlanType: form}}
+			got := reconcileSchedulePrices(state, reported, "2026-11-12")
+			if len(got) != 1 || got[0].PricePointID.ValueString() != "point-9" {
+				t.Fatalf("got %v, want the adopted point-9 alone", got)
+			}
+			if !got[0].PlanType.Equal(form) {
+				t.Errorf("plan_type = %v, want %v: the form the replaced price used", got[0].PlanType, form)
+			}
+		})
 	}
 }

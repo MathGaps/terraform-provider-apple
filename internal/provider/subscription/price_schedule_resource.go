@@ -680,9 +680,13 @@ func reconcileSchedulePrices(state []subscriptionSchedulePriceModel, reported []
 	}
 
 	reconciled := make([]subscriptionSchedulePriceModel, 0, len(byPricePoint))
+	droppedPlan := make(map[string]types.String)
 	for _, price := range state {
 		id := price.PricePointID.ValueString()
 		if _, ok := byPricePoint[id]; !ok {
+			if territory := territoryOfPoint(reported, id); territory != "" {
+				droppedPlan[territory] = price.PlanType
+			}
 			continue
 		}
 		reconciled = append(reconciled, price)
@@ -710,14 +714,46 @@ func reconcileSchedulePrices(state []subscriptionSchedulePriceModel, reported []
 		if price.Relationships != nil {
 			adopted.TerritoryID = territoryID(price.Relationships.Territory)
 		}
-		if price.Attributes.PlanType != nil {
-			adopted.PlanType = types.StringValue(string(*price.Attributes.PlanType))
-		}
+		adopted.PlanType = adoptedPlanType(price.Attributes.PlanType, droppedPlan[recordTerritory(price)])
 
 		reconciled = append(reconciled, adopted)
 	}
 
 	return reconciled
+}
+
+// adoptedPlanType is the plan_type of a price adopted from Apple. Apple reports
+// UPFRONT on the ordinary price, which is the same value as no plan_type at
+// all (priceKey), so it is written in the form the price it replaces used --
+// null when it left the plan unset, "UPFRONT" when it named it -- and a
+// configuration in either form plans no change. Any other plan is Apple's.
+func adoptedPlanType(reported *models.SubscriptionPlanType, replaced types.String) types.String {
+	if reported != nil && *reported != "UPFRONT" {
+		return types.StringValue(string(*reported))
+	}
+	if !replaced.IsNull() && !replaced.IsUnknown() && replaced.ValueString() == "UPFRONT" {
+		return replaced
+	}
+	return types.StringNull()
+}
+
+// territoryOfPoint is the territory of a price point, read off the records that
+// use it (any of them, ended or preserved included), or "" when none do.
+func territoryOfPoint(reported []models.SubscriptionPrice, id string) string {
+	for _, price := range reported {
+		if pointID(price) == id {
+			return recordTerritory(price)
+		}
+	}
+	return ""
+}
+
+// recordTerritory is the territory a record prices, or "".
+func recordTerritory(price models.SubscriptionPrice) string {
+	if price.Relationships != nil && price.Relationships.Territory != nil {
+		return price.Relationships.Territory.Data.ID
+	}
+	return ""
 }
 
 // supersedesPreserved reports whether another record of the pending price's
