@@ -561,10 +561,11 @@ func effectiveRecords(reported []models.SubscriptionPrice) map[string]models.Sub
 }
 
 // priceKey names the slot a price fills: a territory and a plan. An unset
-// plan is MONTHLY, on both sides, because Apple reports planType on prices
-// that never named one.
+// plan is UPFRONT, on both sides: Apple reports planType UPFRONT on the
+// ordinary price of a subscription whose price never named one (read live from
+// prod's pro_monthly, 2026-11-12).
 func priceKey(territory string, plan *models.SubscriptionPlanType) string {
-	p := models.SubscriptionPlanType("MONTHLY")
+	p := models.SubscriptionPlanType("UPFRONT")
 	if plan != nil && *plan != "" {
 		p = *plan
 	}

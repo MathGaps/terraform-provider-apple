@@ -211,9 +211,9 @@ func TestWriteApprovedKeepsPlansApart(t *testing.T) {
 	client, requests := priceScheduleServer(t, "APPROVED", "["+monthly+","+upfront+"]")
 	r := &subscriptionPriceScheduleResource{client: client}
 
-	m := schedulePrice("USA", "pp9") // plan unset reads as MONTHLY
-	u := schedulePrice("USA", "up1")
-	u.PlanType = types.StringValue("UPFRONT")
+	m := schedulePrice("USA", "pp9")
+	m.PlanType = types.StringValue("MONTHLY")
+	u := schedulePrice("USA", "up1") // plan unset reads as UPFRONT, as Apple reports it
 
 	var diags diag.Diagnostics
 	r.write(context.Background(), schedulePlan(m, u), &diags)
