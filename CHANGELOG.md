@@ -1,3 +1,17 @@
+## 0.6.2 (November 12, 2026)
+
+BUG FIXES:
+
+* **`apple_subscription_price_schedule`: a price change on an approved
+  subscription is always dated.** 0.6.0 and 0.6.1 posted
+  `/v1/subscriptionPrices` with no `startDate` when `start_date` was unset, and
+  Apple answered 409 "Initial price cannot be created again after subscription
+  is approved": a price with no date is an initial price. An unset `start_date`
+  now sends the date three days from today (UTC), which is beyond the "1 to 2
+  days in advance" Apple's help gives as the soonest for every time zone; an
+  explicit `start_date` is sent as written. The PATCH path for a subscription
+  still taking metadata is unchanged.
+
 ## 0.6.1 (November 12, 2026)
 
 BUG FIXES:

@@ -103,3 +103,32 @@ prices for an auto-renewable subscription, by territory"; filters are `filter[te
 `startDate` (date), `preserved` (boolean), `planType`; the territory and price point come from the
 relationships. The docs do not say whether ended prices are listed or how a preserved one is told apart. Only a
 live read can answer; see the note on the item for the call.
+
+## 0.6.2: the change is dated (live finding, 2026-11-12)
+
+Assumption (a) above was wrong. iac#488's prod apply sent 157 `POST /v1/subscriptionPrices` without `startDate` on
+an APPROVED subscription and Apple answered 409 "Initial price cannot be created again after subscription is
+approved" on the first: an undated price is an initial price. Nothing was written.
+
+What was read (a search, not a live write; Apple publishes no dry run):
+
+- App Store Connect Help, "Manage pricing for auto-renewable subscriptions"
+  (developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions):
+  a *starting price* has no start date, a *price change* on an existing subscription has one chosen; the soonest
+  date is decided by time zone, "generally 1 to 2 days in advance"; one future change per storefront and billing
+  plan type, and a second overwrites the first; a change in effect cannot be reverted.
+- Apple forum 775066 (a POST for a change in its last hour before taking effect: 409 STATE_ERROR "Must delete
+  future price change before creating a new price change"): confirms a change is a dated record, one pending per
+  territory.
+- Apple forum 773452 (PATCH with `prices` refused while in review, "User is not allowed to edit"): no POST detail.
+- The "Configuring subscription prices across territories" guide (null startDate = immediately) is contradicted for
+  an approved subscription by the 409 above.
+- No fastlane/spaceship or asc CLI source stating a minimum date was found; the earliest date is not documented to
+  the day.
+
+Decision: an unset `start_date` on the POST path sends UTC today + 3 days (`defaultLeadDays`). The storefront
+furthest ahead of UTC (+14h) is a calendar day ahead of the UTC date, so +3 is two local days there and more
+elsewhere, which clears "1 to 2 days" everywhere. An explicit `start_date` is sent as written. If Apple still
+refuses, the error names the state and the date sent; the lead can be raised in one constant.
+Read-back is unchanged: the pending dated record is adopted with `start_date` null and `preserve_current_price`
+from the record it supersedes, so the plan after the apply stays empty.

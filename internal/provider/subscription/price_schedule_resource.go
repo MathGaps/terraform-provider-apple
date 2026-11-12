@@ -339,10 +339,27 @@ func (r *subscriptionPriceScheduleResource) ImportState(ctx context.Context, req
 	resp.Diagnostics.Append(diags...)
 }
 
+// defaultLeadDays is how far ahead an approved subscription's price change
+// starts when start_date is unset. Apple reads a POST without a startDate as an
+// initial price and refuses it once the subscription is approved (409), so a
+// change is always dated. Apple's help says the soonest date it accepts is
+// "generally 1 to 2 days in advance", by time zone; the storefront furthest
+// ahead of UTC (+14h) is a calendar day ahead of the UTC date, so UTC today
+// plus 3 days is two days ahead there and more everywhere else.
+const defaultLeadDays = 3
+
+// now is the clock; tests replace it.
+var now = time.Now
+
+// defaultStartDate is the date an undated change on an approved subscription is sent with.
+func defaultStartDate() string {
+	return now().UTC().AddDate(0, 0, defaultLeadDays).Format("2006-01-02")
+}
+
 // today is the date the pending-price rule in reconcileSchedulePrices compares
 // start dates against; tests pass their own.
 func today() string {
-	return time.Now().UTC().Format("2006-01-02")
+	return now().UTC().Format("2006-01-02")
 }
 
 // acceptsInitialPrice reports whether the subscription state is one in which Apple takes
@@ -438,9 +455,9 @@ func (r *subscriptionPriceScheduleResource) write(ctx context.Context, plan *sub
 			diags.AddError(
 				"Error Writing Subscription Price Schedule",
 				fmt.Sprintf("Could not write %d price(s) for subscription '%s' (state %s): %s\n\n"+
-					"Apple refuses an initial price once a subscription is approved. The provider should "+
-					"have chosen POST /v1/subscriptionPrices for state %s, so this is a bug in the provider: "+
-					"please report it.", count, subscriptionID, state, err.Error(), state),
+					"Apple refuses an initial price once a subscription is approved, and reads a price "+
+					"without a start date as one. The provider sends POST /v1/subscriptionPrices with a "+
+					"start date for state %s, so this is a bug in the provider: please report it.", count, subscriptionID, state, err.Error(), state),
 			)
 		case strings.Contains(errMsg, "processing the pricing information"):
 			// Apple answers a rejected price with "An error occurred while
@@ -464,7 +481,8 @@ func (r *subscriptionPriceScheduleResource) write(ctx context.Context, plan *sub
 		default:
 			hint := fmt.Sprintf("The subscription is in state %s. On a state outside MISSING_METADATA, "+
 				"READY_TO_SUBMIT and DEVELOPER_ACTION_NEEDED a price change is made by POST "+
-				"/v1/subscriptionPrices, one request per territory; this is the request that failed.", state)
+				"/v1/subscriptionPrices, one request per territory, each with a start date (start_date, or "+
+				"%d days from today when unset); this is the request that failed.", state, defaultLeadDays)
 			if state == "" {
 				hint = "Apple reported no state for the subscription."
 			}
@@ -499,7 +517,11 @@ func (r *subscriptionPriceScheduleResource) postChangedPrices(subscriptionID str
 	}
 	*count = len(posts)
 
+	start := defaultStartDate()
 	for _, price := range posts {
+		if price.StartDate == nil {
+			price.StartDate = &start
+		}
 		var territory *string
 		if price.TerritoryID != "" {
 			territory = &price.TerritoryID

@@ -226,3 +226,37 @@ func TestWriteApprovedKeepsPlansApart(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteApprovedUndatedChangeCarriesAStartDate(t *testing.T) {
+	t.Parallel()
+	listing := "[" + priceRecord("a", "USA", "pp8", nil, false) + "]"
+	client, requests := priceScheduleServer(t, "APPROVED", listing)
+	r := &subscriptionPriceScheduleResource{client: client}
+
+	var diags diag.Diagnostics
+	r.write(context.Background(), schedulePlan(schedulePrice("USA", "pp9")), &diags)
+	if diags.HasError() {
+		t.Fatalf("write failed: %v", diags)
+	}
+
+	var posts []seenRequest
+	for _, req := range requests() {
+		if req.method == http.MethodPost {
+			posts = append(posts, req)
+		}
+	}
+	if len(posts) != 1 {
+		t.Fatalf("POST count = %d, want 1", len(posts))
+	}
+	var sent struct {
+		Data struct {
+			Attributes map[string]any `json:"attributes"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(posts[0].body), &sent); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := sent.Data.Attributes["startDate"].(string); got == "" {
+		t.Errorf("startDate missing from %s: Apple reads an undated price as an initial price", posts[0].body)
+	}
+}
