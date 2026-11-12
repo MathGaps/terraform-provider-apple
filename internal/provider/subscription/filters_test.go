@@ -461,7 +461,7 @@ func TestReconcileSchedulePricesKeepsConfiguredValues(t *testing.T) {
 	monthly := models.SubscriptionPlanType("MONTHLY")
 	reconciled := reconcileSchedulePrices(configured, []models.SubscriptionPrice{
 		reportedPrice("price-1", "point-usa", "USA", nil, &monthly),
-	})
+	}, "2026-11-12")
 
 	if len(reconciled) != 1 {
 		t.Fatalf("got %d prices, want 1", len(reconciled))
@@ -484,7 +484,7 @@ func TestReconcileSchedulePricesDropsPricesAppleNoLongerReports(t *testing.T) {
 
 	reconciled := reconcileSchedulePrices(configured, []models.SubscriptionPrice{
 		reportedPrice("price-1", "point-usa", "USA", nil, nil),
-	})
+	}, "2026-11-12")
 
 	if len(reconciled) != 1 {
 		t.Fatalf("got %d prices, want 1", len(reconciled))
@@ -503,7 +503,7 @@ func TestReconcileSchedulePricesAdoptsUnknownPrices(t *testing.T) {
 
 	reconciled := reconcileSchedulePrices(nil, []models.SubscriptionPrice{
 		reportedPrice("price-2", "point-gbr", "GBR", &startDate, &upfront),
-	})
+	}, "2027-06-01")
 
 	if len(reconciled) != 1 {
 		t.Fatalf("got %d prices, want 1", len(reconciled))
@@ -539,7 +539,7 @@ func TestReconcileSchedulePricesSkipsPricesWithoutAPricePoint(t *testing.T) {
 			ID:            "price-4",
 			Relationships: &models.SubscriptionPriceRelationships{},
 		},
-	})
+	}, "2026-11-12")
 
 	if len(reconciled) != 0 {
 		t.Fatalf("got %d prices, want 0: neither reported a price point", len(reconciled))

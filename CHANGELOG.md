@@ -1,3 +1,27 @@
+## 0.6.0 (November 12, 2026)
+
+BUG FIXES:
+
+* **`apple_subscription_price_schedule` can change the price of an approved
+  subscription.** The resource always sent the replace-all
+  `PATCH /v1/subscriptions/{id}`, which Apple reads as an initial price and
+  refuses once the subscription is approved (HTTP 409 "Initial price cannot be
+  created again after subscription is approved"). The resource now reads the
+  subscription's state first: in `MISSING_METADATA`, `READY_TO_SUBMIT` and
+  `DEVELOPER_ACTION_NEEDED` it still sends the PATCH; in any other state it
+  sends one `POST /v1/subscriptionPrices` for each territory whose price point
+  differs from the one in effect, carrying `start_date` and
+  `preserve_current_price` when set. A territory absent from the configuration
+  is left alone.
+* **A refresh no longer sees the history of a price as the price.** Apple lists
+  ended and preserved price records beside the current one. The resource now
+  drops preserved records and keeps the latest-starting record of each
+  territory, so a price change scheduled by hand reads back equal to the
+  configuration that wants it (`start_date` unset, `preserve_current_price`
+  true) instead of planning a second change or removing the preserved price.
+* The error for a failed price write names the subscription's state instead of
+  always saying "in review".
+
 ## 0.5.0 (October 12, 2026)
 
 MathGaps's first release with resources of its own: upstream
