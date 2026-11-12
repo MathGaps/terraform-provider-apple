@@ -575,3 +575,42 @@ func TestReconcileSchedulePricesReadsUpfrontAsUnset(t *testing.T) {
 		})
 	}
 }
+
+// TestReconcileSchedulePricesKeepsPreserveFromState covers preserve_current_price
+// being an instruction on a request: Apple never reports it, so a price adopted
+// in place of one state held carries that price's value, whatever records Apple
+// lists, and one that replaced nothing reads null.
+func TestReconcileSchedulePricesKeepsPreserveFromState(t *testing.T) {
+	upfront := models.SubscriptionPlanType("UPFRONT")
+	pending := "2026-11-13"
+	preserved := true
+	kept := reportedPrice("old", "point-8", "USA", nil, &upfront)
+	kept.Attributes.Preserved = &preserved
+
+	tests := map[string]struct {
+		reported []models.SubscriptionPrice
+		state    []subscriptionSchedulePriceModel
+		want     types.Bool
+	}{
+		"one unchanged record, in state with the instruction, keeps it": {
+			reported: []models.SubscriptionPrice{reportedPrice("only", "point-9", "USA", nil, &upfront)},
+			state:    []subscriptionSchedulePriceModel{{PricePointID: types.StringValue("point-9"), PreserveCurrentPrice: types.BoolValue(true)}},
+			want:     types.BoolValue(true),
+		},
+		"a price that replaced nothing reads null even beside a preserved record": {
+			reported: []models.SubscriptionPrice{kept, reportedPrice("new", "point-9", "USA", &pending, &upfront)},
+			want:     types.BoolNull(),
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := reconcileSchedulePrices(tt.state, tt.reported, "2026-11-12")
+			if len(got) != 1 || got[0].PricePointID.ValueString() != "point-9" {
+				t.Fatalf("got %v, want the adopted point-9 alone", got)
+			}
+			if !got[0].PreserveCurrentPrice.Equal(tt.want) {
+				t.Errorf("preserve_current_price = %v, want %v", got[0].PreserveCurrentPrice, tt.want)
+			}
+		})
+	}
+}
