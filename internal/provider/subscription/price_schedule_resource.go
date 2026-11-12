@@ -131,9 +131,11 @@ func (r *subscriptionPriceScheduleResource) Schema(_ context.Context, _ resource
 						},
 						"start_date": schema.StringAttribute{
 							MarkdownDescription: "The date the price takes effect, as a plain date in " +
-								"`YYYY-MM-DD` form — not a timestamp. Unset is the soonest date Apple " +
-								"allows. Apple ignores dates for an initial price, which is what is " +
-								"written until the subscription is approved.",
+								"`YYYY-MM-DD` form — not a timestamp. Unset is 3 days from today (UTC) " +
+								"for a price change on an approved subscription: Apple refuses an undated one " +
+								"as an initial price, and accepts a change only one to two days ahead or more. " +
+								"Apple ignores dates for an initial price, which is what is written until the " +
+								"subscription is approved.",
 							Optional:   true,
 							Validators: []validator.String{StartDateValidator},
 						},
