@@ -145,9 +145,9 @@ func (r *subscriptionPriceScheduleResource) Schema(_ context.Context, _ resource
 							Optional: true,
 						},
 						"plan_type": schema.StringAttribute{
-							MarkdownDescription: "Which plan the price applies to: `MONTHLY` for the " +
-								"recurring price, or `UPFRONT` for a pre-paid plan where the customer " +
-								"pays the whole term in advance.",
+							MarkdownDescription: "Which plan the price applies to. Unset is the ordinary price, which Apple " +
+								"reports as `UPFRONT`. Set `MONTHLY` only for a monthly-payment plan on a " +
+								"longer commitment.",
 							Optional:   true,
 							Validators: []validator.String{PlanTypeValidator},
 						},

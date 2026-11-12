@@ -75,8 +75,8 @@ const (
 
 // Subscription plan type enumeration.
 //
-// MONTHLY is the recurring price of the subscription. UPFRONT is the price of
-// a pre-paid plan, where the customer pays the whole term in advance.
+// UPFRONT is the ordinary price: Apple reports it on a price that never named a
+// plan. MONTHLY is the monthly-payment plan on a longer commitment.
 type SubscriptionPlanType string
 
 const (

@@ -187,7 +187,7 @@ Required:
 
 Optional:
 
-- `plan_type` (String) Which plan the price applies to: `MONTHLY` for the recurring price, or `UPFRONT` for a pre-paid plan where the customer pays the whole term in advance.
+- `plan_type` (String) Which plan the price applies to. Unset is the ordinary price, which Apple reports as `UPFRONT`. Set `MONTHLY` only for a monthly-payment plan on a longer commitment.
 - `preserve_current_price` (Boolean) Whether existing subscribers keep the price they signed up at rather than moving to this one. Applies when this price replaces an earlier one, which is how an approved subscription is changed.
 - `start_date` (String) The date the price takes effect, as a plain date in `YYYY-MM-DD` form — not a timestamp. Unset is the soonest date Apple allows. Apple ignores dates for an initial price, which is what is written until the subscription is approved.
 - `territory_id` (String) The three-letter Apple territory code this price applies to, for example `USA`, `GBR` or `EGY`. Optional: a price point already encodes its territory and Apple infers it. Setting it makes an equalized fan-out self-describing, which is the case it exists for.

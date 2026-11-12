@@ -7,6 +7,10 @@ BUG FIXES:
   on an approved subscription a price that never named a plan did not match
   the record Apple lists for it (planType UPFRONT) and was sent again by any
   later write that touched the resource.
+* The `plan_type` descriptions of `apple_subscription_price_schedule` and
+  `apple_subscription_price` said `MONTHLY` was the recurring price. The
+  ordinary price is `UPFRONT` (leave `plan_type` unset); `MONTHLY` is Apple's
+  monthly-payment plan on a longer commitment.
 
 ## 0.6.0 (November 12, 2026)
 
