@@ -668,9 +668,10 @@ func effectivePrices(reported []models.SubscriptionPrice) (effective, pointTerri
 // An effective price Apple reports that state does not know about is added with
 // Apple's own values, so a price added in App Store Connect surfaces as drift
 // rather than silently disappearing. One that has not started yet (its start
-// date is after today) is adopted without that date and with
-// preserve_current_price set when a record of its territory that it replaces is
-// preserved, which is the shape of the configuration that would schedule it.
+// date is after today) is adopted without that date, the shape of the
+// configuration that would schedule it. preserve_current_price is a request's
+// instruction Apple never reports, so an adopted price keeps the value of the
+// state price it replaced in its territory, and is null when it replaced none.
 func reconcileSchedulePrices(state []subscriptionSchedulePriceModel, reported []models.SubscriptionPrice, today string) []subscriptionSchedulePriceModel {
 	byPricePoint := make(map[string]models.SubscriptionPrice)
 	for _, price := range effectiveRecords(reported) {
@@ -681,11 +682,13 @@ func reconcileSchedulePrices(state []subscriptionSchedulePriceModel, reported []
 
 	reconciled := make([]subscriptionSchedulePriceModel, 0, len(byPricePoint))
 	droppedPlan := make(map[string]types.String)
+	droppedPreserve := make(map[string]types.Bool)
 	for _, price := range state {
 		id := price.PricePointID.ValueString()
 		if _, ok := byPricePoint[id]; !ok {
 			if territory := territoryOfPoint(reported, id); territory != "" {
 				droppedPlan[territory] = price.PlanType
+				droppedPreserve[territory] = price.PreserveCurrentPrice
 			}
 			continue
 		}
@@ -695,26 +698,25 @@ func reconcileSchedulePrices(state []subscriptionSchedulePriceModel, reported []
 
 	for _, price := range byPricePoint {
 		adopted := subscriptionSchedulePriceModel{
-			PricePointID: types.StringValue(pointID(price)),
-			StartDate:    stringOrNull(price.Attributes.StartDate),
-			// preserveCurrentPrice is an instruction, not a property: Apple
-			// reports only its outcome, through "preserved" on the record that
-			// was kept. Leave the input null so it matches a configuration
-			// that does not set it, except for a pending price below.
+			PricePointID:         types.StringValue(pointID(price)),
+			StartDate:            stringOrNull(price.Attributes.StartDate),
 			PreserveCurrentPrice: types.BoolNull(),
 		}
 
 		if price.Attributes.StartDate != nil && *price.Attributes.StartDate > today {
 			adopted.StartDate = types.StringNull()
-			if supersedesPreserved(reported, price) {
-				adopted.PreserveCurrentPrice = types.BoolValue(true)
-			}
 		}
 
 		if price.Relationships != nil {
 			adopted.TerritoryID = territoryID(price.Relationships.Territory)
 		}
 		adopted.PlanType = adoptedPlanType(price.Attributes.PlanType, droppedPlan[recordTerritory(price)])
+		// preserve_current_price is an instruction on the request, not a property
+		// of the price: Apple never reports it, so the price this one replaced is
+		// the only source, and a price with none (an import) reads null.
+		if kept, ok := droppedPreserve[recordTerritory(price)]; ok {
+			adopted.PreserveCurrentPrice = kept
+		}
 
 		reconciled = append(reconciled, adopted)
 	}
@@ -754,19 +756,4 @@ func recordTerritory(price models.SubscriptionPrice) string {
 		return price.Relationships.Territory.Data.ID
 	}
 	return ""
-}
-
-// supersedesPreserved reports whether another record of the pending price's
-// territory is preserved, i.e. subscribers were held on what it replaces.
-func supersedesPreserved(reported []models.SubscriptionPrice, pending models.SubscriptionPrice) bool {
-	key := recordKey(pending)
-	for _, other := range reported {
-		if other.ID == pending.ID || recordKey(other) != key {
-			continue
-		}
-		if other.Attributes.Preserved != nil && *other.Attributes.Preserved {
-			return true
-		}
-	}
-	return false
 }

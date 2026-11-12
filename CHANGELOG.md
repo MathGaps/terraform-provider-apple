@@ -1,3 +1,16 @@
+## 0.6.4 (November 12, 2026)
+
+BUG FIXES:
+
+* **`apple_subscription_price_schedule`: `preserve_current_price` is never read
+  from Apple.** It is an instruction on a price-change request, not a property
+  of the price Apple returns. Read-back derived it from the `preserved` flag of a
+  superseded record, so a territory with no such record (one whose old and new
+  prices equalize to the same price point) read back without it and planned an
+  update against a configuration that set it. A price adopted from Apple now
+  keeps the value of the state price it replaced in its territory, and reads
+  null when it replaced none; Apple's records no longer decide it.
+
 ## 0.6.3 (November 12, 2026)
 
 BUG FIXES:

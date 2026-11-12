@@ -179,7 +179,10 @@ func TestReconcileIgnoresPreservedAndPendingPrices(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := reconcileSchedulePrices(nil, reported, "2026-11-12")
+	// Prod state holds the 8 as it was configured, with the instruction; the
+	// pending 9 replaces it and carries the instruction over from state.
+	held := subscriptionSchedulePriceModel{PricePointID: types.StringValue("pp8"), PreserveCurrentPrice: types.BoolValue(true)}
+	got := reconcileSchedulePrices([]subscriptionSchedulePriceModel{held}, reported, "2026-11-12")
 	if len(got) != 1 {
 		t.Fatalf("got %d prices, want 1: %v", len(got), got)
 	}
